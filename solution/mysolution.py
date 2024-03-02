@@ -13,7 +13,6 @@ class MySolution(Solution):
     """
     def __init__(self):
         super().__init__()
-        self.loaded_cargo = set()       
 
     def reset(self, obs, observation_spaces=None, action_spaces=None, seed=None):
         # Currently, the evaluator will NOT pass in an observation space or action space (they will be set to None)
@@ -24,6 +23,7 @@ class MySolution(Solution):
 
     def policies(self, obs, dones, infos):
         cargo_ids_assigned = set()
+        loaded_cargo = set()
         # Use the action helper to generate an action
         actions = {}
 
@@ -51,22 +51,19 @@ class MySolution(Solution):
                     path = nx.shortest_path(graph, current_airport, cargo.destination, weight="cost")
                     if cargo.destination == current_airport or path[1] not in available_destinations:
                         cargo_to_unload.append(cargo.id)
-                        if cargo.id in self.loaded_cargo:
-                            self.loaded_cargo.remove(cargo.id)
                         cur_weight -= cargo.weight
-                        #print(f"Unload {cargo.id} from {a}")
+                        #print(f"Unld {cargo.id} plane {a} at {current_airport} for destination {cargo.destination}")
 
                 # load
                 for cargo in ObservationHelper.get_active_cargo_info(global_state, cargo_at_current_airport) or []:
-                    if cargo.weight <= max_weight-cur_weight and cargo.id not in cargo_ids_assigned and cargo.id not in self.loaded_cargo:
+                    if cargo.weight <= max_weight-cur_weight and cargo.id not in cargo_ids_assigned and cargo.id not in loaded_cargo:
                         graph = ObservationHelper.get_multidigraph(global_state)
                         path = nx.shortest_path(graph, current_airport, cargo.destination, weight="cost")
                         if path[1] in available_destinations:
                             cargo_to_load.append(cargo.id)
-                            self.loaded_cargo.add(cargo.id)
+                            loaded_cargo.add(cargo.id)
                             cur_weight += cargo.weight
-                            cargo_ids_assigned.add(cargo.id)
-                            #print(f"Load {cargo.id} on {a} destination {cargo.destination}")
+                            #print(f"Load {cargo.id} plane {a} at {current_airport} for destination {cargo.destination}")
                 
                 actions[a] = {"priority": None,
                             "cargo_to_load": cargo_to_load,
