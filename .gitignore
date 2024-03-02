@@ -134,6 +134,9 @@ replay_buffers/*
 # Pycharm
 .idea/
 
+# VSCode
+.vscode/
+
 
 scenarios/
 *.csv
