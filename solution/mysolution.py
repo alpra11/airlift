@@ -18,6 +18,10 @@ class MySolution(Solution):
         # Currently, the evaluator will NOT pass in an observation space or action space (they will be set to None)
         super().reset(obs, observation_spaces, action_spaces, seed)
 
+        global_state = next(iter(obs.values()))["globalstate"]
+        graph = ObservationHelper.get_multidigraph(global_state)
+        self.path_matrix = PathMatrix(graph)
+
         # Create an action helper using our random number generator
         self._action_helper = ActionHelper(self._np_random)
 
@@ -47,8 +51,7 @@ class MySolution(Solution):
                 cargo_to_load = []
                 # unload
                 for cargo in ObservationHelper.get_active_cargo_info(global_state, cargo_onboard) or []:
-                    graph = ObservationHelper.get_multidigraph(global_state)
-                    path = nx.shortest_path(graph, current_airport, cargo.destination, weight="cost")
+                    path = self.path_matrix.get_path(current_airport, cargo.destination)
                     if cargo.destination == current_airport or path[1] not in available_destinations:
                         cargo_to_unload.append(cargo.id)
                         cur_weight -= cargo.weight
@@ -57,8 +60,7 @@ class MySolution(Solution):
                 # load
                 for cargo in ObservationHelper.get_active_cargo_info(global_state, cargo_at_current_airport) or []:
                     if cargo.weight <= max_weight-cur_weight and cargo.id not in cargo_ids_assigned and cargo.id not in loaded_cargo:
-                        graph = ObservationHelper.get_multidigraph(global_state)
-                        path = nx.shortest_path(graph, current_airport, cargo.destination, weight="cost")
+                        path = self.path_matrix.get_path(current_airport, cargo.destination)
                         if path[1] in available_destinations:
                             cargo_to_load.append(cargo.id)
                             loaded_cargo.add(cargo.id)
@@ -83,8 +85,7 @@ class MySolution(Solution):
                         #print(f"Destination for {a} to {destination} for {cargo.id}")
                         break
                     else:
-                        graph = ObservationHelper.get_multidigraph(global_state)
-                        path = nx.shortest_path(graph, current_airport, cargo.destination, weight="cost")
+                        path = self.path_matrix.get_path(current_airport, cargo.destination)
                         if path[1] in available_destinations:
                             destination = path[1]
                             #print(f"Destination for {a} to {destination} for {cargo.id} final dest {cargo.destination}, path is {path}")
@@ -102,8 +103,7 @@ class MySolution(Solution):
                                 cargo_ids_assigned.add(cargo.id)
                                 break
                             else:
-                                graph = ObservationHelper.get_multidigraph(global_state)
-                                path = nx.shortest_path(graph, current_airport, cargo.location, weight="cost")
+                                path = self.path_matrix.get_path(current_airport, cargo.location)
                                 
                                 if path[1] in available_destinations:
                                     destination = path[1]
@@ -122,3 +122,16 @@ class MySolution(Solution):
                 actions[a] = ActionHelper.noop_action()
         return actions
 
+class PathMatrix:
+    def __init__(self, graph) -> None:
+        self.graph = graph
+        self._matrix = {}
+
+    def get_path(self, orig, dest):
+        from_to = (orig, dest)
+        if from_to in self._matrix:
+            return self._matrix[from_to]
+        else:
+            path = nx.shortest_path(self.graph, orig, dest, weight="cost")
+            self._matrix[from_to] = path
+            return path
