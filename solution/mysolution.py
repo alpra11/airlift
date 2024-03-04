@@ -31,8 +31,7 @@ class MySolution(Solution):
         # Use the action helper to generate an action
         actions = {}
 
-        agents = [a for a in obs.items()]
-        sorted(agents, key=lambda a: a[1]["state"])
+        agents = sorted([a for a in obs.items()], key=lambda a: a[1]["state"])
         for (a, agent) in agents:
             plane_state = agent["state"]
             current_airport = agent["current_airport"]
@@ -40,7 +39,6 @@ class MySolution(Solution):
             cur_weight = agent["current_weight"]
             available_destinations = agent["available_routes"]
             global_state = agent["globalstate"]
-            plane_type = agent["plane_type"]
             active_cargo = global_state["active_cargo"]
             cargo_at_current_airport = agent["cargo_at_current_airport"]
             cargo_onboard = agent["cargo_onboard"]
@@ -73,9 +71,8 @@ class MySolution(Solution):
                             "destination": NOAIRPORT_ID}
 
             elif plane_state == PlaneState.READY_FOR_TAKEOFF:
-
-                cargo_to_ship = ObservationHelper.get_active_cargo_info(global_state, cargo_onboard) or []
-                sorted(cargo_to_ship, key=lambda x: x.hard_deadline)
+                
+                cargo_to_ship = sorted(ObservationHelper.get_active_cargo_info(global_state, cargo_onboard) or [], key=lambda x: x.hard_deadline)
 
                 # destination from cargo on board
                 destination = NOAIRPORT_ID
@@ -95,8 +92,8 @@ class MySolution(Solution):
 
                 # destination from cargo on destinations
                 if destination == NOAIRPORT_ID:
-                    sorted(active_cargo, key=lambda x: x.earliest_pickup_time)
-                    for cargo in active_cargo:
+                    active_cargo_by_pickup = sorted(active_cargo, key=lambda x: x.earliest_pickup_time)
+                    for cargo in active_cargo_by_pickup:
                         if cargo.id not in cargo_ids_assigned and cargo.location > 0:
                             if cargo.location in available_destinations or cargo.location == current_airport:
                                 destination = cargo.location
@@ -121,7 +118,7 @@ class MySolution(Solution):
             else:
                 actions[a] = ActionHelper.noop_action()
         return actions
-
+    
 class PathMatrix:
     def __init__(self, graph) -> None:
         self.graph = graph
