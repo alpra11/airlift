@@ -81,12 +81,20 @@ class MySolution(Solution):
                 for cargo in cargo_to_ship:
                     if cargo.destination in available_destinations:
                         destination = cargo.destination
+                        actions[a] = {"priority": None,
+                                                "cargo_to_load": [],
+                                                "cargo_to_unload": [],
+                                                "destination": destination}
                         #print(f"Destination for {a} to {destination} for {cargo.id}")
                         break
                     else:
                         path = self.path_matrix.get_path(current_airport, cargo.destination)
                         if path[1] in available_destinations:
                             destination = path[1]
+                            actions[a] = {"priority": None,
+                                                "cargo_to_load": [],
+                                                "cargo_to_unload": [],
+                                                "destination": destination}
                             #print(f"Destination for {a} to {destination} for {cargo.id} final dest {cargo.destination}, path is {path}")
                             break
                         else:
@@ -96,26 +104,44 @@ class MySolution(Solution):
                 if destination == NOAIRPORT_ID:
                     for cargo in active_cargo_by_pickup:
                         if cargo.id not in cargo_ids_assigned and cargo.location > 0:
-                            if cargo.location in available_destinations or cargo.location == current_airport:
+                            if cargo.location in available_destinations:
                                 destination = cargo.location
                                 cargo_ids_assigned.add(cargo.id)
+                                actions[a] = {"priority": None,
+                                                "cargo_to_load": [],
+                                                "cargo_to_unload": [],
+                                                "destination": destination}
                                 break
+                            elif cargo.location == current_airport:
+                                if cargo.is_available and cargo.weight <= max_weight-cur_weight and cargo.id not in cargo_ids_assigned and cargo.id not in loaded_cargo:
+                                        path = self.path_matrix.get_path(current_airport, cargo.destination)
+                                        if path[1] in available_destinations:
+                                            loaded_cargo.add(cargo.id)
+                                            cur_weight += cargo.weight
+                                            actions[a] = {"priority": None,
+                                                        "cargo_to_load": [cargo.id],
+                                                        "cargo_to_unload": [],
+                                                        "destination": NOAIRPORT_ID}
+                                else:
+                                    actions[a] = {"priority": None,
+                                                "cargo_to_load": [],
+                                                "cargo_to_unload": [],
+                                                "destination": NOAIRPORT_ID}
                             else:
                                 path = self.path_matrix.get_path(current_airport, cargo.location)
-                                
                                 if path[1] in available_destinations:
                                     destination = path[1]
                                     cargo_ids_assigned.add(cargo.id)
+                                    actions[a] = {"priority": None,
+                                                "cargo_to_load": [],
+                                                "cargo_to_unload": [],
+                                                "destination": destination}
                                     break
-                
-                # random destination
-                if destination == NOAIRPORT_ID and len(available_destinations) > 0:
-                    destination = self._action_helper._choice(available_destinations)
-
-                actions[a] = {"priority": None,
-                            "cargo_to_load": [],
-                            "cargo_to_unload": [],
-                            "destination": destination}
+                if a not in actions:
+                    actions[a] = {"priority": None,
+                                "cargo_to_load": [],
+                                "cargo_to_unload": [],
+                                "destination": NOAIRPORT_ID}
             else:
                 actions[a] = ActionHelper.noop_action()
         return actions
