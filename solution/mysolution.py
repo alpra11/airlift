@@ -31,15 +31,17 @@ class MySolution(Solution):
         # Use the action helper to generate an action
         actions = {}
 
-        agents = sorted([a for a in obs.items()], key=lambda a: a[1]["state"])
+        global_state = next(iter(obs.values()))["globalstate"]
+        active_cargo = global_state["active_cargo"]
+        active_cargo_by_pickup = sorted(active_cargo, key=lambda x: x.earliest_pickup_time)
+
+        agents = sorted(obs.items(), key=lambda a: a[1]["state"])
         for (a, agent) in agents:
             plane_state = agent["state"]
             current_airport = agent["current_airport"]
             max_weight = agent["max_weight"]
             cur_weight = agent["current_weight"]
             available_destinations = agent["available_routes"]
-            global_state = agent["globalstate"]
-            active_cargo = global_state["active_cargo"]
             cargo_at_current_airport = agent["cargo_at_current_airport"]
             cargo_onboard = agent["cargo_onboard"]
             destination = agent["destination"]
@@ -92,7 +94,6 @@ class MySolution(Solution):
 
                 # destination from cargo on destinations
                 if destination == NOAIRPORT_ID:
-                    active_cargo_by_pickup = sorted(active_cargo, key=lambda x: x.earliest_pickup_time)
                     for cargo in active_cargo_by_pickup:
                         if cargo.id not in cargo_ids_assigned and cargo.location > 0:
                             if cargo.location in available_destinations or cargo.location == current_airport:
