@@ -4,6 +4,8 @@ from airlift.envs.airport import NOAIRPORT_ID
 from airlift.envs.agents import PlaneState
 from airlift.envs.airlift_env import ObservationHelper
 
+from typing import Tuple, Dict, List
+
 import networkx as nx
 
 class MySolution(Solution):
@@ -147,15 +149,19 @@ class MySolution(Solution):
         return actions
     
 class PathMatrix:
-    def __init__(self, graph) -> None:
-        self.graph = graph
-        self._matrix = {}
+    def __init__(self, graph: nx.graph) -> None:
+        self.graph: nx.graph = graph
+        self._matrix: Dict[Tuple[int, int], List[int]] = {}
 
-    def get_path(self, orig, dest):
+    def _compute_shortest_path(self, orig: int, dest: int, from_to: Tuple[int, int]):
+        path = nx.shortest_path(self.graph, orig, dest, weight="cost")
+        self._matrix[from_to] = path
+        for sub_ind in range(1, len(path)-1):
+            sub_from_to = (path[sub_ind], dest)
+            self._matrix[sub_from_to] = path[sub_ind:len(path)]
+
+    def get_path(self, orig: int, dest: int):
         from_to = (orig, dest)
-        if from_to in self._matrix:
-            return self._matrix[from_to]
-        else:
-            path = nx.shortest_path(self.graph, orig, dest, weight="cost")
-            self._matrix[from_to] = path
-            return path
+        if from_to not in self._matrix:
+            self._compute_shortest_path(orig, dest, from_to)       
+        return self._matrix[from_to]
