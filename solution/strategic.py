@@ -42,7 +42,7 @@ class Model:
                 travel_time = self.travel_times.get_travel_time(orig, dest)
                 earliest_pickup += processing_time + travel_time
 
-            latest_pickup = cargo.hard_deadline
+            latest_pickup = cargo.soft_deadline
             sequence = len(shortest_path) - 1
             # travel backward
             for orig, dest in zip(shortest_path[-2::-1], shortest_path[::-1]):

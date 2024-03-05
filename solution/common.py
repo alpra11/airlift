@@ -144,7 +144,11 @@ class Plane:
         self.actions.append(ce)
         self.next_destination = ce.destination
         # add cargo at location
-        if self.location == ce.origin:
+        if (
+            self.location == ce.origin
+            and tw_overlap(self.ep, self.lp, ce.ep, ce.lp)
+            and self.cur_weight + ce.weight <= self.max_weight
+        ):
             self.cur_weight += ce.weight
             self.cargo_ids.add(ce.cargo_id)
             self.ep = max(self.ep, ce.ep)
