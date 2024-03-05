@@ -1,5 +1,4 @@
 import math
-import time
 from typing import Dict
 from airlift.envs.airlift_env import ObservationHelper
 from solution.common import (
@@ -26,7 +25,6 @@ class Model:
         return Planning(self.cargo_edges, self.planes)
 
     def _create_cargo_edges(self, obs) -> CargoEdges:
-        start = time.time()
         cargo_edges = CargoEdges()
 
         global_state = next(iter(obs.values()))["globalstate"]
@@ -63,8 +61,6 @@ class Model:
                     )
                 )
                 sequence -= 1
-        secs = time.time() - start
-        print(f"Calculated {len(cargo_edges.cargo_edges)} edges in {secs} seconds")
         return cargo_edges
 
     def _create_assignments(self, obs) -> Dict[str, Plane]:
@@ -96,14 +92,5 @@ class Model:
                     break
             if not found:
                 print(f"No plane found for ce {ce}")
-
-        cnt = 0
-        for plane in planes:
-            for action in plane.actions:
-                cnt += 1
-                print(
-                    f"{plane.id};{action.cargo_id};{action.origin};{action.destination};{action.ep};{action.lp}"
-                )
-        print(f"Planned {cnt} cargo edges")
 
         return {plane.id: plane for plane in planes}
