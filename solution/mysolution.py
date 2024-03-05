@@ -26,7 +26,8 @@ class MySolution(Solution):
 
         self.current_time = 0
 
-        self.planning = Model().create_planning(obs)
+        self.model = Model()
+        self.planning = self.model.create_planning(obs)
 
         global_state = next(iter(obs.values()))["globalstate"]
 
@@ -39,9 +40,9 @@ class MySolution(Solution):
         actions = {}
 
         global_state = next(iter(obs.values()))["globalstate"]
-        if len(global_state["event_new_cargo"]) > 0:
-            self.planning = Model().create_planning(obs)
-            # TODO: Do this in a better way
+        new_planning = self.model.update_planning(obs)
+        if new_planning is not None:
+            self.planning = new_planning
 
         for a, agent in obs.items():
             plane = self.planning.planes[a]
@@ -66,9 +67,9 @@ class MySolution(Solution):
                     )
                     if cargo is None:
                         # Missed cargo
-                        print(
-                            f"Dumping missed cargo {cargo_id} from {a} at {current_airport}"
-                        )
+                        # print(
+                        #     f"Dumping missed cargo {cargo_id} from {a} at {current_airport}"
+                        # )
                         cargo_to_unload.append(cargo_id)
                         for plane in self.planning.planes.values():
                             plane.actions = [
