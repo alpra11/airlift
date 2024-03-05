@@ -62,14 +62,16 @@ class CargoEdge(NamedTuple):
 
 
 class CargoEdges:
-    cargo_edges: List[CargoEdge] = []
+    def __init__(self) -> None:
+        self.cargo_edges: List[CargoEdge] = []
 
     def add(self, cargo_edge: CargoEdge):
         self.cargo_edges.append(cargo_edge)
 
 
 class Assignments:
-    assignments: Dict[int, CargoEdges] = {}
+    def __init__(self) -> None:
+        self.assignments: Dict[int, CargoEdges] = {}
 
 
 class Planning:
