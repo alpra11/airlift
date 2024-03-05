@@ -10,6 +10,11 @@ from typing import Tuple, Dict, List, Set
 def get_globalstate(obs: Dict) -> Dict:
     return next(iter(obs.values()))["globalstate"]
 
+def get_processing_time(global_state: Dict) -> Dict:
+    if len(global_state["scenario_info"]) != 1:
+        print("ERROR!!!!! Number of scenarios in scenario_info != 1")
+    return global_state["scenario_info"][0].processing_time
+
 class MySolution(Solution):
     """
     Utilizing this class for your solution is required for your submission. The primary solution algorithm will go inside the
