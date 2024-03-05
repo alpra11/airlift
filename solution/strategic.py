@@ -1,5 +1,5 @@
 import math
-from typing import Dict, List
+from typing import Dict, List, Optional
 from airlift.envs.airlift_env import ObservationHelper
 from solution.common import (
     CargoEdge,
@@ -17,6 +17,7 @@ class Model:
 
     def create_planning(self, obs) -> Planning:
         global_state = next(iter(obs.values()))["globalstate"]
+        self.processing_time = global_state["scenario_info"][0].processing_time
         graph = ObservationHelper.get_multidigraph(global_state)
         self.paths = PathCache(graph)
         self.plane_type_map = PlaneTypeMap(global_state["route_map"])
@@ -24,13 +25,28 @@ class Model:
         self.planes = self._create_assignments(obs)
         return Planning(self.cargo_edges, self.planes)
 
-    def _create_cargo_edges(self, obs) -> CargoEdges:
-        cargo_edges = CargoEdges()
-
+    def update_planning(self, obs) -> Optional[Planning]:
+        # TODO: we should probably put the planning in the model so it's more straightforward
+        # Update the palnning for new cargo
         global_state = next(iter(obs.values()))["globalstate"]
-        processing_time = global_state["scenario_info"][0].processing_time
+        new_cargos = global_state["event_new_cargo"]
+        if len(new_cargos) > 0:
+            self.cargo_edges = self._add_cargo_edges_from_cargos(
+                self.cargo_edges, new_cargos
+            )
+            self.planes = self._create_assignments(obs)
+            return Planning(self.cargo_edges, self.planes)
+        # TODO: Do something to return a modified planning if malfunctions happen...
 
-        for cargo in global_state["active_cargo"]:
+    def _create_cargo_edges(self, obs) -> CargoEdges:
+        global_state = next(iter(obs.values()))["globalstate"]
+        cargo_edges = CargoEdges()
+        return self._add_cargo_edges_from_cargos(
+            cargo_edges, global_state["active_cargo"]
+        )
+
+    def _add_cargo_edges_from_cargos(self, cargo_edges, cargos) -> CargoEdges:
+        for cargo in cargos:
             shortest_path = self.paths.get_path(cargo.location, cargo.destination)
 
             earliest_pickup = cargo.earliest_pickup_time
@@ -38,21 +54,21 @@ class Model:
             # travel forward
             for orig, dest in zip(shortest_path[1:], shortest_path[:-1]):
                 travel_time = self.paths.get_travel_time(orig, dest)
-                earliest_pickup += processing_time + travel_time
+                earliest_pickup += self.processing_time + travel_time
 
             latest_pickup = cargo.soft_deadline
             sequence = len(shortest_path) - 1
             # travel backward
             for orig, dest in zip(shortest_path[-2::-1], shortest_path[::-1]):
                 travel_time = self.paths.get_travel_time(orig, dest)
-                earliest_pickup -= processing_time + travel_time
-                latest_pickup -= processing_time + travel_time
+                earliest_pickup -= self.processing_time + travel_time
+                latest_pickup -= self.processing_time + travel_time
                 cargo_edges.add(
                     CargoEdge(
                         cargo.id,
                         orig,
                         dest,
-                        travel_time + processing_time,
+                        travel_time + self.processing_time,
                         sequence,
                         earliest_pickup,
                         latest_pickup,
