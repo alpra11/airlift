@@ -150,9 +150,9 @@ class MySolution(Solution):
                     )
                     if self.current_time > self.agent_reroute_blocked_until[a]:
                         if queues > 0:
-                            print(
-                                f"Plane {a} attempting reroute to {cargo.destination} avoid congestion"
-                            )
+                            # print(
+                            #     f"Plane {a} attempting reroute to {cargo.destination} avoid congestion"
+                            # )
                             filtered_mgraph = nx.subgraph_view(
                                 current_mgraph,
                                 filter_edge=lambda u, v, k: airport_queue[u] == 0
@@ -196,9 +196,9 @@ class MySolution(Solution):
                                     self.current_time + queues + 1
                                 )
                         if mals > 0:
-                            print(
-                                f"Plane {a} attempting reroute to {cargo.destination} avoid mal"
-                            )
+                            # print(
+                            #     f"Plane {a} attempting reroute to {cargo.destination} avoid mal"
+                            # )
                             filtered_mgraph = nx.subgraph_view(
                                 current_mgraph,
                                 filter_edge=lambda u, v, k: current_mgraph[u][v][k][
@@ -245,7 +245,8 @@ class MySolution(Solution):
                                     self.current_time + mals + 1
                                 )
                     if (
-                        path_time < (cargo.soft_deadline * 3 + cargo.hard_deadline) / 4
+                        path_time
+                        < (cargo.soft_deadline * 0 + cargo.hard_deadline * 1) / 1
                         and max_weight - cur_weight > active_cargo_by_pickup[0].weight
                     ):
                         break
