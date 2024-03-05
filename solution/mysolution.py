@@ -172,6 +172,8 @@ class MySolution(Solution):
                             }
                             # print(f"Sending {a} on {path} to pickup {ce}")
                             break
+                        else:
+                            print(f"WARNING: {a} cannot go on {path} to pickup {ce}")
             if a not in actions:
                 actions[a] = ActionHelper.noop_action()
         self.current_time += 1
