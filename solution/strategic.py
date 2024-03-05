@@ -52,7 +52,7 @@ class Model:
                     )
                 )
         secs = time.time() - start
-        print(f"Calculated {len(cargo_edges.cargo_edges)} in {secs} seconds")
+        print(f"Calculated {len(cargo_edges.cargo_edges)} edges in {secs} seconds")
         return cargo_edges
 
 
