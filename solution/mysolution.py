@@ -37,7 +37,9 @@ class MySolution(Solution):
         actions = {}
 
         global_state = next(iter(obs.values()))["globalstate"]
-        # TODO: Update planning when new cargo comes in and mals
+        if len(global_state["event_new_cargo"]) > 0:
+            self.planning = Model().create_planning(obs)
+            # TODO: Do this in a better way
 
         for a, agent in obs.items():
             plane = self.planning.planes[a]
