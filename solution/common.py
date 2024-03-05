@@ -1,15 +1,14 @@
 from dataclasses import dataclass, field
-from typing import Dict, List, NamedTuple, Set
+from typing import Dict, List, NamedTuple, Set, Tuple
 import networkx as nx
 
 BIG_TIME = 100_000
 
 
-class TravelTimes:
+class PlaneTypeMap:
     # cache for travel time between 2 nodes
     def __init__(self, route_map) -> None:
         self.route_map = route_map
-        self._cache = {}
 
     def get_allowable_plane_types(self, orig: int, dest: int) -> Set[int]:
         plane_types = set()
@@ -22,35 +21,32 @@ class TravelTimes:
         graph = self.route_map[plane_type]
         return nx.has_path(graph, orig, dest)
 
-    def get_travel_time(self, orig: int, dest: int) -> int:
-        od = (orig, dest)
-        if od in self._cache:
-            return self._cache[od]
-        else:
-            tt = 0
-            for graph in self.route_map.values():
-                try:
-                    tt = max(tt, nx.path_weight(graph, (orig, dest), "time"))
-                except:
-                    pass
-            self._cache[od] = tt
-            return tt
-
 
 class PathCache:
     # shortest path cache
     def __init__(self, graph) -> None:
         self.graph = graph
-        self._cache = {}
+        self._path_cache: Dict[Tuple[int, int], List[int]] = {}
+        self._time_cache: Dict[Tuple[int, int], int] = {}
 
     def get_path(self, orig, dest):
         from_to = (orig, dest)
-        if from_to in self._cache:
-            return self._cache[from_to]
+        if from_to in self._path_cache:
+            return self._path_cache[from_to]
         else:
             path = nx.shortest_path(self.graph, orig, dest, weight="cost")
-            self._cache[from_to] = path
+            self._path_cache[from_to] = path
             return path
+
+    def get_travel_time(self, orig, dest):
+        from_to = (orig, dest)
+        if from_to in self._time_cache:
+            return self._time_cache[from_to]
+        else:
+            path = self.get_path(orig, dest)
+            time = nx.path_weight(self.graph, path, "time")
+            self._time_cache[from_to] = time
+            return time
 
 
 class CargoEdge(NamedTuple):
@@ -86,9 +82,10 @@ class Plane:
     actions: List[CargoEdge] = field(default_factory=lambda: [])
     cargo_ids: Set[int] = field(default_factory=lambda: set())
 
-    def matches(self, ce: CargoEdge) -> int:
+    def matches(
+        self, ce: CargoEdge, path_cache: PathCache
+    ) -> Tuple[int, int, int, int, int, int]:
         # lower is better match
-
         cargo = 0 if ce.cargo_id in self.cargo_ids else 1
         same_edge = (
             0
@@ -98,17 +95,20 @@ class Plane:
         origin = 0 if self.location == ce.origin else 1
         destination = 0 if self.next_destination == ce.origin else 1
         actions = len(self.actions)
-        timediff = ce.ep - self.ep
+        tt = path_cache.get_travel_time(self.location, ce.origin)
+        timediff = self.ep + tt - ce.ep
 
         return (cargo, same_edge, origin, destination, actions, timediff)
 
-    def can_service(self, ce: CargoEdge, travel_times: TravelTimes) -> bool:
+    def can_service(
+        self, ce: CargoEdge, path_cache: PathCache, plane_type_map: PlaneTypeMap
+    ) -> bool:
         # can plane fly the edge
         if self.type not in ce.allowed_plane_types:
             return False
 
         # plane can not reach origin
-        if not travel_times.reachable(self.type, self.location, ce.origin):
+        if not plane_type_map.reachable(self.type, self.location, ce.origin):
             return False
 
         # add cargo at location
@@ -131,7 +131,7 @@ class Plane:
         elif (
             self.ep
             + self.actions[-1].duration
-            + travel_times.get_travel_time(self.next_destination, ce.origin)
+            + path_cache.get_travel_time(self.next_destination, ce.origin)
             < ce.lp
         ):
             return True
