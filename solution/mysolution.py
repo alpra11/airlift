@@ -30,8 +30,8 @@ class MySolution(Solution):
 
         global_state = next(iter(obs.values()))["globalstate"]
 
-        self.path_matrices = dict()        
-        for plane_type, route_map in global_state["route_map"].items()
+        self.path_matrices = dict()
+        for plane_type, route_map in global_state["route_map"].items():
             self.path_matrices[plane_type] = PathMatrix(route_map)
 
     def policies(self, obs, dones, infos):
