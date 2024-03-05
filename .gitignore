@@ -140,3 +140,6 @@ replay_buffers/*
 
 scenarios/
 *.csv
+
+# Mac
+.DS_Store

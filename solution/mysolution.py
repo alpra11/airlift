@@ -30,18 +30,23 @@ class MySolution(Solution):
 
         global_state = next(iter(obs.values()))["globalstate"]
 
-        self.path_matrix = PathMatrix(ObservationHelper.get_multidigraph(global_state))
+        self.path_matrices = dict()        
+        for plane_type, route_map in global_state["route_map"].items()
+            self.path_matrices[plane_type] = PathMatrix(route_map)
 
     def policies(self, obs, dones, infos):
         # Use the action helper to generate an action
         actions = {}
 
         global_state = next(iter(obs.values()))["globalstate"]
-        # TODO: Update planning when new cargo comes in and mals
+        if len(global_state["event_new_cargo"]) > 0:
+            self.planning = Model().create_planning(obs)
+            # TODO: Do this in a better way
 
         for a, agent in obs.items():
             plane = self.planning.planes[a]
             plane_state = agent["state"]
+            plane_type = agent["plane_type"]
             current_airport = agent["current_airport"]
             max_weight = agent["max_weight"]
             cur_weight = agent["current_weight"]
@@ -158,7 +163,9 @@ class MySolution(Solution):
                             # print(f"{a} waiting at {current_airport} for {ce}")
                             break
 
-                        path = self.path_matrix.get_path(current_airport, ce.origin)
+                        path = self.path_matrices[plane_type].get_path(
+                            current_airport, ce.origin
+                        )
                         if path[1] in available_destinations:
                             # Head to it
                             destination = path[1]
@@ -170,6 +177,8 @@ class MySolution(Solution):
                             }
                             # print(f"Sending {a} on {path} to pickup {ce}")
                             break
+                        else:
+                            print(f"WARNING: {a} cannot go on {path} to pickup {ce}")
             if a not in actions:
                 actions[a] = ActionHelper.noop_action()
         self.current_time += 1
