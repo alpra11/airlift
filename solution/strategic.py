@@ -54,15 +54,21 @@ class Model:
             # travel forward
             for orig, dest in zip(shortest_path[1:], shortest_path[:-1]):
                 travel_time = self.paths.get_travel_time(orig, dest)
-                earliest_pickup += self.processing_time + travel_time
+                earliest_pickup += (
+                    self.processing_time + travel_time + self.processing_time
+                )
 
             latest_pickup = cargo.soft_deadline
             sequence = len(shortest_path) - 1
             # travel backward
             for orig, dest in zip(shortest_path[-2::-1], shortest_path[::-1]):
                 travel_time = self.paths.get_travel_time(orig, dest)
-                earliest_pickup -= self.processing_time + travel_time
-                latest_pickup -= self.processing_time + travel_time
+                earliest_pickup -= (
+                    self.processing_time + travel_time + self.processing_time
+                )
+                latest_pickup -= (
+                    self.processing_time + travel_time + self.processing_time
+                )
                 cargo_edges.add(
                     CargoEdge(
                         cargo.id,
