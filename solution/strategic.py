@@ -1,3 +1,4 @@
+import math
 import time
 from typing import Dict
 from airlift.envs.airlift_env import ObservationHelper
@@ -42,6 +43,7 @@ class Model:
                 earliest_pickup += processing_time + travel_time
 
             latest_pickup = cargo.soft_deadline
+            sequence = len(shortest_path) - 1
             # travel backward
             for orig, dest in zip(shortest_path[-2::-1], shortest_path[::-1]):
                 travel_time = self.travel_times.get_travel_time(orig, dest)
@@ -53,12 +55,14 @@ class Model:
                         orig,
                         dest,
                         travel_time + processing_time,
+                        sequence,
                         earliest_pickup,
                         latest_pickup,
                         cargo.weight,
                         self.travel_times.get_allowable_plane_types(orig, dest),
                     )
                 )
+                sequence -= 1
         secs = time.time() - start
         print(f"Calculated {len(cargo_edges.cargo_edges)} edges in {secs} seconds")
         return cargo_edges
@@ -76,11 +80,13 @@ class Model:
                 )
             )
 
-        for ce in sorted(self.cargo_edges.cargo_edges, key=lambda ce: ce.ep):
+        for ce in sorted(
+            self.cargo_edges.cargo_edges,
+            key=lambda ce: (math.floor(ce.ep / 30), ce.sequence),
+        ):
             sorted_planes = sorted(
                 [p for p in planes if p.type in ce.allowed_plane_types],
                 key=lambda p: p.matches(ce),
-                reverse=True,
             )
             found = False
             for plane in sorted_planes:

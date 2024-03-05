@@ -54,6 +54,7 @@ class CargoEdge(NamedTuple):
     origin: int
     destination: int
     duration: int
+    sequence: int
     ep: int  # earliest pickup
     lp: int  # latest pickup
     weight: int
@@ -61,7 +62,8 @@ class CargoEdge(NamedTuple):
 
 
 class CargoEdges:
-    cargo_edges: List[CargoEdge] = []
+    def __init__(self) -> None:
+        self.cargo_edges: List[CargoEdge] = []
 
     def add(self, cargo_edge: CargoEdge):
         self.cargo_edges.append(cargo_edge)
@@ -81,17 +83,20 @@ class Plane:
     cargo_ids: Set[int] = field(default_factory=lambda: set())
 
     def matches(self, ce: CargoEdge) -> int:
-        matches = 0
-        if ce.cargo_id in self.cargo_ids:
-            matches += 10000
-        if self.location == ce.origin:
-            matches += 4000
-        if self.ep == 0:
-            matches += 3000
-        if self.next_destination == ce.destination:
-            matches += 1000
-        matches -= (ce.ep - self.ep) / 10
-        return matches
+        # lower is better match
+
+        cargo = 0 if ce.cargo_id in self.cargo_ids else 1
+        same_edge = (
+            0
+            if self.location == ce.origin and self.next_destination == ce.destination
+            else 1
+        )
+        origin = 0 if self.location == ce.origin else 1
+        destination = 0 if self.next_destination == ce.origin else 1
+        actions = len(self.actions)
+        timediff = ce.ep - self.ep
+
+        return (cargo, same_edge, origin, destination, actions, timediff)
 
     def can_service(self, ce: CargoEdge, travel_times: TravelTimes) -> bool:
         # can plane fly the edge
@@ -128,7 +133,11 @@ class Plane:
         self.actions.append(ce)
         self.next_destination = ce.destination
         # add cargo at location
-        if self.location == ce.origin:
+        if (
+            self.location == ce.origin
+            and tw_overlap(self.ep, self.lp, ce.ep, ce.lp)
+            and self.cur_weight + ce.weight <= self.max_weight
+        ):
             self.cur_weight += ce.weight
             self.cargo_ids.add(ce.cargo_id)
             self.ep = max(self.ep, ce.ep)
