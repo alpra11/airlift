@@ -1,9 +1,14 @@
 import time
-from typing import Set
-import networkx as nx
 from airlift.envs.airlift_env import ObservationHelper
-
-from solution.common import CargoEdge, CargoEdges, Planning
+from solution.common import (
+    Assignments,
+    CargoEdge,
+    CargoEdges,
+    PathCache,
+    Plane,
+    Planning,
+    TravelTimes,
+)
 
 
 class Model:
@@ -15,9 +20,11 @@ class Model:
         graph = ObservationHelper.get_multidigraph(global_state)
         self.paths = PathCache(graph)
         self.travel_times = TravelTimes(global_state["route_map"])
-        self.cargo_edges = self.create_cargo_edges(obs)
+        self.cargo_edges = self._create_cargo_edges(obs)
+        self.assignments = self._create_assignments(obs)
+        return Planning(self.cargo_edges, self.assignments)
 
-    def create_cargo_edges(self, obs) -> CargoEdges:
+    def _create_cargo_edges(self, obs) -> CargoEdges:
         start = time.time()
         cargo_edges = CargoEdges()
 
@@ -45,6 +52,7 @@ class Model:
                         cargo.id,
                         orig,
                         dest,
+                        travel_time + processing_time,
                         earliest_pickup,
                         latest_pickup,
                         cargo.weight,
@@ -55,46 +63,42 @@ class Model:
         print(f"Calculated {len(cargo_edges.cargo_edges)} edges in {secs} seconds")
         return cargo_edges
 
+    def _create_assignments(self, obs) -> Assignments:
+        assignments = Assignments()
+        planes = []
+        for a_id, agent in obs.items():
+            planes.append(
+                Plane(
+                    a_id,
+                    agent["current_airport"],
+                    agent["current_airport"],
+                    agent["plane_type"],
+                    agent["max_weight"],
+                )
+            )
 
-class TravelTimes:
-    # cache for travel time between 2 nodes
-    def __init__(self, route_map) -> None:
-        self.route_map = route_map
-        self._cache = {}
+        for ce in sorted(self.cargo_edges.cargo_edges, key=lambda ce: ce.ep):
+            sorted_planes = sorted(
+                [p for p in planes if p.type in ce.allowed_plane_types],
+                key=lambda p: p.matches(ce),
+                reverse=True,
+            )
+            found = False
+            for plane in sorted_planes:
+                if plane.can_service(ce, self.travel_times):
+                    plane.add_cargo_edge(ce)
+                    found = True
+                    break
+            if not found:
+                print(f"No plane found for ce {ce}")
 
-    def get_allowable_plane_types(self, orig, dest) -> Set[int]:
-        plane_types = set()
-        for pt, graph in self.route_map.items():
-            if graph.has_edge(orig, dest):
-                plane_types.add(pt)
-        return plane_types
+        cnt = 0
+        for plane in planes:
+            for action in plane.actions:
+                cnt += 1
+                print(
+                    f"{plane.id};{action.cargo_id};{action.origin};{action.destination};{action.ep};{action.lp}"
+                )
+        print(f"Planned {cnt} cargo edges")
 
-    def get_travel_time(self, orig, dest) -> int:
-        od = (orig, dest)
-        if od in self._cache:
-            return self._cache[od]
-        else:
-            tt = 0
-            for graph in self.route_map.values():
-                try:
-                    tt = max(tt, nx.path_weight(graph, (orig, dest), "time"))
-                except:
-                    pass
-            self._cache[od] = tt
-            return tt
-
-
-class PathCache:
-    # shortest path cache
-    def __init__(self, graph) -> None:
-        self.graph = graph
-        self._cache = {}
-
-    def get_path(self, orig, dest):
-        from_to = (orig, dest)
-        if from_to in self._cache:
-            return self._cache[from_to]
-        else:
-            path = nx.shortest_path(self.graph, orig, dest, weight="cost")
-            self._cache[from_to] = path
-            return path
+        return assignments
