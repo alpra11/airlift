@@ -11,14 +11,18 @@ class TravelTimes:
         self.route_map = route_map
         self._cache = {}
 
-    def get_allowable_plane_types(self, orig, dest) -> Set[int]:
+    def get_allowable_plane_types(self, orig: int, dest: int) -> Set[int]:
         plane_types = set()
         for pt, graph in self.route_map.items():
             if graph.has_edge(orig, dest):
                 plane_types.add(pt)
         return plane_types
 
-    def get_travel_time(self, orig, dest) -> int:
+    def reachable(self, plane_type: int, orig: int, dest: int) -> bool:
+        graph = self.route_map[plane_type]
+        return nx.has_path(graph, orig, dest)
+
+    def get_travel_time(self, orig: int, dest: int) -> int:
         od = (orig, dest)
         if od in self._cache:
             return self._cache[od]
@@ -103,10 +107,15 @@ class Plane:
         if self.type not in ce.allowed_plane_types:
             return False
 
+        # plane can not reach origin
+        if not travel_times.reachable(self.type, self.location, ce.origin):
+            return False
+
         # add cargo at location
         if len(self.actions) == 0:
             return True
-        elif (
+
+        if (
             self.location == ce.origin
             and tw_overlap(self.ep, self.lp, ce.ep, ce.lp)
             and self.cur_weight + ce.weight <= self.max_weight
