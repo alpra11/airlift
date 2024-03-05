@@ -1,24 +1,33 @@
 import networkx as nx
 from airlift.envs.airlift_env import ObservationHelper
 
+from solution.common import Planning
+
+
 class Model:
     def __init__(self) -> None:
         pass
 
-    def initialize(self, obs, observation_spaces=None, action_spaces=None, seed=None):
+    def create_planning(
+        self, obs, observation_spaces=None, action_spaces=None, seed=None
+    ) -> Planning:
         global_state = next(iter(obs.values()))["globalstate"]
         graph = ObservationHelper.get_multidigraph(global_state)
         self.paths = PathCache(graph)
-        self.travel_times = {plane_type: TravelTimes(graph) for plane_type, graph in global_state["route_map"]}
+        self.travel_times = {
+            plane_type: TravelTimes(graph)
+            for plane_type, graph in global_state["route_map"]
+        }
+
 
 class TravelTimes:
     # cache for travel time between 2 nodes
     def __init__(self, graph) -> None:
         self.graph = graph
         self._cache = {}
-    
+
     def get_travel_time(self, orig, dest):
-        od = (orig,dest)
+        od = (orig, dest)
         if od in self._cache:
             return self._cache[od]
         else:
@@ -26,6 +35,7 @@ class TravelTimes:
             tt = nx.path_weight(self.graph, (orig, dest), "time")
             self._cache[od] = tt
             return tt
+
 
 class PathCache:
     # shortest path cache
