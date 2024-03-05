@@ -67,16 +67,6 @@ class CargoEdges:
         self.cargo_edges.append(cargo_edge)
 
 
-class Assignments:
-    assignments: Dict[int, CargoEdges] = {}
-
-
-class Planning:
-    def __init__(self, cargo_edges: CargoEdges, assignments: Assignments) -> None:
-        self.cargo_edges = cargo_edges
-        self.assignments = assignments
-
-
 @dataclass
 class Plane:
     id: str
@@ -152,6 +142,12 @@ class Plane:
             self.ep += ce.duration
             self.ep = max(self.ep, ce.ep)
             self.lp = ce.lp
+
+
+class Planning:
+    def __init__(self, cargo_edges: CargoEdges, planes: Dict[str, Plane]) -> None:
+        self.cargo_edges = cargo_edges
+        self.planes = planes
 
 
 def tw_overlap(ep_1: int, lp_1: int, ep_2: int, lp_2: int) -> bool:

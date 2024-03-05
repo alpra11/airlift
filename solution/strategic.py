@@ -1,7 +1,7 @@
 import time
+from typing import Dict
 from airlift.envs.airlift_env import ObservationHelper
 from solution.common import (
-    Assignments,
     CargoEdge,
     CargoEdges,
     PathCache,
@@ -21,8 +21,8 @@ class Model:
         self.paths = PathCache(graph)
         self.travel_times = TravelTimes(global_state["route_map"])
         self.cargo_edges = self._create_cargo_edges(obs)
-        self.assignments = self._create_assignments(obs)
-        return Planning(self.cargo_edges, self.assignments)
+        self.planes = self._create_assignments(obs)
+        return Planning(self.cargo_edges, self.planes)
 
     def _create_cargo_edges(self, obs) -> CargoEdges:
         start = time.time()
@@ -41,7 +41,7 @@ class Model:
                 travel_time = self.travel_times.get_travel_time(orig, dest)
                 earliest_pickup += processing_time + travel_time
 
-            latest_pickup = cargo.hard_deadline
+            latest_pickup = cargo.soft_deadline
             # travel backward
             for orig, dest in zip(shortest_path[-2::-1], shortest_path[::-1]):
                 travel_time = self.travel_times.get_travel_time(orig, dest)
@@ -63,8 +63,7 @@ class Model:
         print(f"Calculated {len(cargo_edges.cargo_edges)} edges in {secs} seconds")
         return cargo_edges
 
-    def _create_assignments(self, obs) -> Assignments:
-        assignments = Assignments()
+    def _create_assignments(self, obs) -> Dict[str, Plane]:
         planes = []
         for a_id, agent in obs.items():
             planes.append(
@@ -101,4 +100,4 @@ class Model:
                 )
         print(f"Planned {cnt} cargo edges")
 
-        return assignments
+        return {plane.id: plane for plane in planes}
