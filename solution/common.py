@@ -138,9 +138,7 @@ class Plane:
 
         return False
 
-    def add_cargo_edge(self, ce: CargoEdge) -> Tuple[int, int]:
-        self.actions.append(ce)
-        self.next_destination = ce.destination
+    def add_cargo_edge(self, ce: CargoEdge, path_cache: PathCache) -> Tuple[int, int]:
         ep_change = 0
         lp_change = 0
         # add cargo at location
@@ -157,14 +155,23 @@ class Plane:
             self.lp = min(self.lp, ce.lp)
         # fly to cargo
         else:
+            self.ep += self.actions[-1].duration if len(self.actions) > 0 else 0
+            if self.next_destination != ce.origin:
+                self.ep += path_cache.get_travel_time(self.next_destination, ce.origin)
             # unload everything and load current cargo
             self.cur_weight = ce.weight
             self.location = ce.origin
             self.cargo_ids = {ce.cargo_id}
-            self.ep += ce.duration
+
             ep_change = max(0, self.ep - ce.ep)
             self.ep = max(self.ep, ce.ep)
             self.lp = ce.lp
+
+        self.actions.append(ce)
+        self.next_destination = ce.destination
+
+        ce.ep = max(self.ep, ce.ep)
+        ce.lp = min(self.lp, ce.lp)
         return (ep_change, lp_change)
 
 

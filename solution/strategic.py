@@ -100,7 +100,7 @@ class Model:
 
         for ce in sorted(
             self.cargo_edges.cargo_edges,
-            key=lambda ce: (math.floor(ce.ep / 50), ce.sequence),
+            key=lambda ce: (math.floor(ce.ep / 30), ce.sequence),
         ):
             sorted_planes = sorted(
                 [p for p in planes if p.type in ce.allowed_plane_types],
@@ -109,7 +109,7 @@ class Model:
             found = False
             for plane in sorted_planes:
                 if plane.can_service(ce, self.paths, self.plane_type_map):
-                    tw_changes = plane.add_cargo_edge(ce)
+                    tw_changes = plane.add_cargo_edge(ce, self.paths)
                     if tw_changes[0] > 0 or tw_changes[1] > 0:
                         for c in self.cargo_edges.cargo_edges:
                             if c.cargo_id == ce.cargo_id and c.sequence > ce.sequence:
