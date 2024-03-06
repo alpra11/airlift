@@ -1,5 +1,6 @@
 from typing import Optional
 
+
 class LocInfo:
     def __init__(self, time: int, loc: int) -> None:
         self.time = time

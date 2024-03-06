@@ -1,17 +1,16 @@
-from airlift.solutions import Solution
-from airlift.envs import ActionHelper
-from airlift.envs.airlift_env import ObservationHelper
-from airlift.envs.airlift_env import ObservationHelper
-from airlift.envs.agents import PlaneState
-
-from solution.common import get_globalstate
-from solution.action import ValidActions
-from solution.graph import PathMatrix, DictGroupedPaths
-from solution.agent import Agent
-from solution.cargo import CargoEstimate, LocInfo
+from typing import Dict, List, Optional, Set, Tuple
 
 import networkx as nx
-from typing import Set, Tuple, Dict, List, Optional 
+
+from airlift.envs import ActionHelper, ObservationHelper
+from airlift.envs.agents import PlaneState
+from airlift.solutions import Solution
+from solution.action import ValidActions
+from solution.agent import Agent
+from solution.cargo import CargoEstimate, LocInfo
+from solution.common import get_globalstate
+from solution.network import DictGroupedPaths, PathMatrix, PathsOffline
+
 
 class MySolution(Solution):
     """
@@ -27,6 +26,8 @@ class MySolution(Solution):
         self.timestep = 0
 
         globalstate = get_globalstate(obs)
+
+        self.paths_offline = PathsOffline()
 
         graph = ObservationHelper.get_multidigraph(globalstate)
         self.path_matrix = PathMatrix(graph, globalstate)
@@ -177,12 +178,11 @@ class MySolution(Solution):
         # Use the acion helper to generate an action
         self.valid_actions.reset_actions(obs.keys())
         self.update_estimate_dict(obs)
+        if infos:
+            self.paths_offline.update(self.timestep, infos)
 
         self.assign_free_agents(obs)
         self.execute_assigned_agents(obs)
 
-        print(self.timestep)
-        print(dones)
-
         self.increment_timestep()
-        return self.valid_actions.get_actions()
+        return self.valid_actions.get_actions()    

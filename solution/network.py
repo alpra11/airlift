@@ -1,7 +1,35 @@
-from typing import Dict, List, Tuple, Set, ItemsView
+from typing import Dict, ItemsView, List, Set, Tuple
+
 import networkx as nx
 
+from airlift.envs.route_map import RouteMap
 from solution.common import get_globalstate
+
+
+class PathsOffline:
+    def __init__(self) -> None:
+        self.paths: Dict[Tuple[int, int], int] = dict() # (From, To): Till Timestep
+
+    def _get_paths_online(self, cur_time: int) -> None:
+        paths_online = {path for path, time in self.paths.items() if cur_time>=time}
+        for path in paths_online:
+            self.paths.pop(path)
+
+    def _get_path_offline(self, cur_time: int, timesteps: int, path: Tuple[int, int]) -> None:
+        if path not in self.paths:
+            self.paths[path] = cur_time + timesteps
+
+    def update(self, cur_time: int, infos: Dict[str, Dict[str, List[str]]]) -> None:
+        self._get_paths_online(cur_time)
+        for agent_info in infos.values():
+            for warning in agent_info["warnings"]:
+                warning_split = str.split(warning)
+                if warning_split[:2] != ["ROUTE", "FROM:"]:
+                    continue
+                timesteps = int(warning_split[-2])
+                path = tuple(sorted([int(warning_split[2]), int(warning_split[4])]))
+                self._get_path_offline(cur_time, timesteps, path)
+
 
 def get_processing_time(globalstate: Dict) -> Dict:
     if len(globalstate["scenario_info"]) != 1:

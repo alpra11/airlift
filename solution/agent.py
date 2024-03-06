@@ -1,4 +1,5 @@
-from typing import Optional, List
+from typing import List, Optional
+
 
 class Agent:
     def __init__(self, agent: str) -> None:

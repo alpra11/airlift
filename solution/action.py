@@ -1,6 +1,6 @@
-from airlift.envs.airport import NOAIRPORT_ID
-
 from typing import Any, Dict, KeysView, List, Optional
+
+from airlift.envs.airport import NOAIRPORT_ID
 
 NO_ACTION = {"priority": None, "cargo_to_load": [], "cargo_to_unload": [], "destination": NOAIRPORT_ID}
 
