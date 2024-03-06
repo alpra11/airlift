@@ -109,7 +109,12 @@ class Model:
             found = False
             for plane in sorted_planes:
                 if plane.can_service(ce, self.paths, self.plane_type_map):
-                    plane.add_cargo_edge(ce)
+                    tw_changes = plane.add_cargo_edge(ce)
+                    if tw_changes[0] > 0 or tw_changes[1] > 0:
+                        for c in self.cargo_edges.cargo_edges:
+                            if c.cargo_id == ce.cargo_id and c.sequence > ce.sequence:
+                                c.ep += tw_changes[0]
+                                c.lp -= tw_changes[1]
                     found = True
                     break
             if not found:

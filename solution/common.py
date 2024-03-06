@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Dict, List, NamedTuple, Set, Tuple
+from typing import Dict, List, Set, Tuple
 import networkx as nx
 
 BIG_TIME = 100_000
@@ -49,7 +49,8 @@ class PathCache:
             return time
 
 
-class CargoEdge(NamedTuple):
+@dataclass
+class CargoEdge:
     cargo_id: int
     origin: int
     destination: int
@@ -137,9 +138,11 @@ class Plane:
 
         return False
 
-    def add_cargo_edge(self, ce: CargoEdge) -> None:
+    def add_cargo_edge(self, ce: CargoEdge) -> Tuple[int, int]:
         self.actions.append(ce)
         self.next_destination = ce.destination
+        ep_change = 0
+        lp_change = 0
         # add cargo at location
         if (
             self.location == ce.origin
@@ -148,6 +151,8 @@ class Plane:
         ):
             self.cur_weight += ce.weight
             self.cargo_ids.add(ce.cargo_id)
+            ep_change = max(0, self.ep - ce.ep)
+            lp_change = max(0, ce.lp - self.lp)
             self.ep = max(self.ep, ce.ep)
             self.lp = min(self.lp, ce.lp)
         # fly to cargo
@@ -157,8 +162,10 @@ class Plane:
             self.location = ce.origin
             self.cargo_ids = {ce.cargo_id}
             self.ep += ce.duration
+            ep_change = max(0, self.ep - ce.ep)
             self.ep = max(self.ep, ce.ep)
             self.lp = ce.lp
+        return (ep_change, lp_change)
 
 
 class Planning:
