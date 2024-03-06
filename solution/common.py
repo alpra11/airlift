@@ -87,18 +87,17 @@ class Plane:
     ) -> Tuple[int, int, int, int, int, int]:
         # lower is better match
         cargo = 0 if ce.cargo_id in self.cargo_ids else 1
-        same_edge = (
-            0
-            if self.location == ce.origin and self.next_destination == ce.destination
-            else 1
-        )
-        origin = 0 if self.location == ce.origin else 1
+        same_edge_and_tw_overlap = 1
+        if (
+            self.location == ce.origin and self.next_destination == ce.destination
+        ) and tw_overlap(self.ep, self.lp, ce.ep, ce.lp):
+            same_edge_and_tw_overlap = 0
         destination = 0 if self.next_destination == ce.origin else 1
         actions = len(self.actions)
         tt = path_cache.get_travel_time(self.location, ce.origin)
         timediff = self.ep + tt - ce.ep
 
-        return (cargo, same_edge, origin, destination, actions, timediff)
+        return (cargo, same_edge_and_tw_overlap, destination, actions, timediff)
 
     def can_service(
         self, ce: CargoEdge, path_cache: PathCache, plane_type_map: PlaneTypeMap
