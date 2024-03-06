@@ -9,6 +9,7 @@ from solution.action import ValidActions
 from solution.agent import Agent
 from solution.cargo import CargoEstimate, LocInfo
 from solution.common import get_globalstate
+from solution.helper import process_infos
 from solution.network import DictGroupedPaths, PathMatrix, PathsOffline
 
 
@@ -176,10 +177,12 @@ class MySolution(Solution):
             
     def policies(self, obs, dones, infos):
         # Use the acion helper to generate an action
+
+        offline_warnings = process_infos(infos)
+        self.paths_offline.update(self.timestep, offline_warnings)
+
         self.valid_actions.reset_actions(obs.keys())
         self.update_estimate_dict(obs)
-        if infos:
-            self.paths_offline.update(self.timestep, infos)
 
         self.assign_free_agents(obs)
         self.execute_assigned_agents(obs)

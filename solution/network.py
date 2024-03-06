@@ -19,16 +19,13 @@ class PathsOffline:
         if path not in self.paths:
             self.paths[path] = cur_time + timesteps
 
-    def update(self, cur_time: int, infos: Dict[str, Dict[str, List[str]]]) -> None:
+    def update(self, cur_time: int, offline_warnings: Set[str]) -> None:
         self._get_paths_online(cur_time)
-        for agent_info in infos.values():
-            for warning in agent_info["warnings"]:
-                warning_split = str.split(warning)
-                if warning_split[:2] != ["ROUTE", "FROM:"]:
-                    continue
-                timesteps = int(warning_split[-2])
-                path = tuple(sorted([int(warning_split[2]), int(warning_split[4])]))
-                self._get_path_offline(cur_time, timesteps, path)
+        for warning in offline_warnings:
+            warning_split = str.split(warning)
+            timesteps = int(warning_split[-2])
+            path = tuple(sorted([int(warning_split[2]), int(warning_split[4])]))
+            self._get_path_offline(cur_time, timesteps, path)
 
 
 def get_processing_time(globalstate: Dict) -> Dict:
