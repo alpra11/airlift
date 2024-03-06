@@ -4,13 +4,14 @@ from airlift.envs.airlift_env import ObservationHelper
 from airlift.envs.airlift_env import ObservationHelper
 from airlift.envs.agents import PlaneState
 
-from solution.common import get_globalstate, DEFAULT_ACTION, action_pickup_cargo, action_drop_cargo, action_set_destination
+from solution.common import get_globalstate
+from solution.action import ValidActions
 from solution.graph import PathMatrix, DictGroupedPaths
 from solution.agent import Agent
 from solution.cargo import CargoEstimate, LocInfo
 
 import networkx as nx
-from typing import Tuple, Dict, List, Set, Optional
+from typing import Set, Tuple, Dict, List, Optional 
 
 class MySolution(Solution):
     """
@@ -18,7 +19,7 @@ class MySolution(Solution):
     policy function.
     """
     def __init__(self):
-        super().__init__()
+        super().__init__() 
 
     def reset(self, obs, observation_spaces=None, action_spaces=None, seed=None):
         # Currently, the evaluator will NOT pass in an observation space or action space (they will be set to None)
@@ -38,7 +39,7 @@ class MySolution(Solution):
             for c in globalstate["active_cargo"]
         }
 
-        self.valid_actions: Dict[str, Dict] = dict()
+        self.valid_actions = ValidActions()
 
         # Create an action helper using our random number generator
         self._action_helper = ActionHelper(self._np_random)
@@ -113,17 +114,18 @@ class MySolution(Solution):
         cargo_id = self.agents[agent].cargo_id
         cur_airport = agent_state["current_airport"]
         if cargo_id in agent_state["cargo_at_current_airport"]:
-            self.valid_actions[agent] = action_pickup_cargo(cargo_id)
+            self.valid_actions.process_cargo(agent, cargo_to_load=[cargo_id])
         elif (
             self.agents[agent].path[-1] == cur_airport and 
             cargo_id in agent_state["cargo_onboard"]
         ):
-            self.valid_actions[agent] = action_drop_cargo(cargo_id)
+            self.valid_actions.process_cargo(agent, cargo_to_unload=[cargo_id])
             self.cargo_estimate[cargo_id].cur_loc.loc = cur_airport
             if cur_airport != self.cargo_estimate[cargo_id].dest:
                 self.cargo_estimate[cargo_id].cur_loc.unassign()
         else:
-            self.valid_actions[agent] = DEFAULT_ACTION
+            # NO_ACTION
+            pass
     
     def compute_takeoff_actions(self, agent: str, agent_state: Dict, obs: Dict) -> None:
         globalstate = get_globalstate(obs)
@@ -134,49 +136,53 @@ class MySolution(Solution):
         if cargo_id in agent_state["cargo_onboard"]:
             if path[0] != cur_airport:
                 new_path = nx.shortest_path(graph, cur_airport, path[0], weight="cost")
-                self.valid_actions[agent] = action_set_destination(new_path[1])
+                self.valid_actions.take_off(agent, new_path[1])
             else:
                 if not graph.has_edge(path[0], path[1]):
                     new_path = nx.shortest_path(graph, path[0], path[-1], weight="cost")
-                    self.valid_actions[agent] = action_set_destination(new_path[1])
+                    self.valid_actions.take_off(agent, new_path[1])
                 else:
                     self.agents[agent].path = path[1:]
-                    self.valid_actions[agent] = action_set_destination(path[1])
+                    self.valid_actions.take_off(agent, path[1])
         else:
             if len(self.agents[agent].path) == 1 and self.agents[agent].path[-1] == cur_airport:
                 self.agents[agent].unassign()
                 group = self.grouped_paths.get_agent_group(agent)
                 self.assignable_agents[group].add(agent)
-                self.valid_actions[agent] = DEFAULT_ACTION
             elif cur_airport == self.agents[agent].path[0]:
                 if cargo_id in agent_state["cargo_at_current_airport"]:
-                    self.valid_actions[agent] = action_pickup_cargo(cargo_id)
+                    self.valid_actions.process_cargo(agent, cargo_to_load=[cargo_id])
                 else:
-                    self.valid_actions[agent] = DEFAULT_ACTION
+                    # NO_ACTION
+                    pass
             else:
                 new_path = nx.shortest_path(graph, cur_airport, path[0], weight="cost")
-                self.valid_actions[agent] = action_set_destination(new_path[1])
+                self.valid_actions.take_off(agent, new_path[1])
 
 
     def execute_assigned_agents(self, obs: Dict) -> None:
         for agent in self.agents:
             agent_state = obs[agent]
             if self.agents[agent].is_free():
-                self.valid_actions[agent] = DEFAULT_ACTION
                 continue
             if agent_state["state"] == PlaneState.WAITING:
                 self.compute_waiting_actions(agent, agent_state)            
             elif agent_state["state"] == PlaneState.READY_FOR_TAKEOFF:
                 self.compute_takeoff_actions(agent, agent_state, obs)
             else:
-                self.valid_actions[agent] = DEFAULT_ACTION
+                # NO_ACTION
+                pass
             
     def policies(self, obs, dones, infos):
         # Use the acion helper to generate an action
+        self.valid_actions.reset_actions(obs.keys())
         self.update_estimate_dict(obs)
 
         self.assign_free_agents(obs)
         self.execute_assigned_agents(obs)
 
+        print(self.timestep)
+        print(dones)
+
         self.increment_timestep()
-        return self.valid_actions
+        return self.valid_actions.get_actions()

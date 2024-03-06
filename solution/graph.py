@@ -1,7 +1,12 @@
 from typing import Dict, List, Tuple, Set, ItemsView
 import networkx as nx
 
-from solution.common import get_globalstate, get_processing_time
+from solution.common import get_globalstate
+
+def get_processing_time(globalstate: Dict) -> Dict:
+    if len(globalstate["scenario_info"]) != 1:
+        print("ERROR!!!!! Number of scenarios in scenario_info != 1")
+    return globalstate["scenario_info"][0].processing_time
 
 class DictGroupedPaths:
     def __init__(self, obs: Dict) -> None:

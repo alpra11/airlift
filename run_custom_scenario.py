@@ -99,6 +99,7 @@ env = AirliftEnv(
 """
 Run a single episode utilizing the Solution we wrote with the above environment. 
 """
+# env = AirliftEnv.load("./scenarios/Test_0/Level_0.pkl")
 env_info, metrics, time_taken, total_solution_time, step_metrics = \
   doepisode(env,
             solution=MySolution(),
