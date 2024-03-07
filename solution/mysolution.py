@@ -142,7 +142,7 @@ class MySolution(Solution):
                 priority = self.calculate_priority(plane.get_next_deadline())
                 if len(cargo_to_load) > 0:
                     print(
-                        f"[{self.current_time}] Loading {cargo_to_load} on {a} at {current_airport} lp {[ce.lp for ce in plane.actions[0]]}"
+                        f"[{self.current_time}] Loading {cargo_to_load} on {a} at {current_airport} lp {min(ce.lp for ce in plane.actions[0])}"
                     )
 
                 if len(cargo_to_unload) > 0:
@@ -160,7 +160,7 @@ class MySolution(Solution):
                         priority, self.calculate_priority(next_cargo_deadline)
                     )
                     print(
-                        f"[{self.current_time}] Unloading {cargo_to_unload} from {a} at {current_airport}"
+                        f"[{self.current_time}] Unloading {cargo_to_unload} from {a} at {current_airport} lp {next_cargo_deadline}"
                     )
 
                 actions[a] = {
