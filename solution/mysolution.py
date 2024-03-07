@@ -72,20 +72,25 @@ class MySolution(Solution):
                         # )
                         cargo_to_unload.append(cargo_id)
                         for plane in self.planning.planes.values():
-                            plane.actions = [
-                                ce for ce in plane.actions if ce.cargo_id != cargo_id
-                            ]  # TODO This is slow
+                            # TODO This is slow
+                            new_actions = []
+                            for p_actions in plane.actions:
+                                filtered_actions = [
+                                    ce for ce in p_actions if ce.cargo_id != cargo_id
+                                ]
+                                if len(filtered_actions) > 0:
+                                    new_actions.append(filtered_actions)
+                            plane.actions = new_actions
                         continue
 
                     # Unload cargo where the next CargoEdge is not an available destination
                     # TODO: this will happen if there is mal, not ideal
-                    found_ce = False
-                    for ce in plane.actions:
-                        if ce.origin == current_airport and ce.cargo_id == cargo_id:
-                            # If there is a cargoedge from this airport for this cargo, don't unload
-                            found_ce = True
-                            break
-                    if not found_ce:
+
+                    if plane.has_actions():
+                        if all(ce.cargo_id != cargo_id for ce in plane.actions[0]):
+                            cargo_to_unload.append(cargo_id)
+                            cur_weight -= cargo.weight
+                    else:
                         cargo_to_unload.append(cargo_id)
                         cur_weight -= cargo.weight
 
@@ -96,19 +101,40 @@ class MySolution(Solution):
                     )
                     or []
                 ):
-                    for ce in plane.actions:
-                        if (
-                            ce.origin == current_airport
-                            and ce.cargo_id == cargo.id
-                            and cargo.weight <= max_weight - cur_weight
-                        ):
-                            # If there is a cargoedge from this airport for this cargo, load
-                            cargo_to_load.append(cargo.id)
-                            cur_weight += cargo.weight
-                            # print(f"Loading {cargo.id} on {a} for {ce}")
+                    if plane.has_actions():
+                        for ce in plane.actions[0]:
+                            if (
+                                ce.origin == current_airport
+                                and ce.cargo_id == cargo.id
+                                and cargo.weight <= max_weight - cur_weight
+                            ):
+                                # If there is a CargoEdge from this airport for this cargo, load
+                                cargo_to_load.append(cargo.id)
+                                cur_weight += cargo.weight
+
+                # load all cargo at once
+                if plane.has_actions():
+                    cargo_missing = len(cargo_to_load) < len(plane.actions[0])
+                    can_wait = all(
+                        self.current_time < ce.lp
+                        for ce in plane.actions[0]
+                        if ce.cargo_id in cargo_to_load
+                    )
+                    if cargo_missing and can_wait:
+                        cargo_to_load = []
+
+                if len(cargo_to_load) > 0:
+                    print(
+                        f"[{self.current_time}] Loading {cargo_to_load} on {a} at {current_airport} lp {[ce.lp for ce in plane.actions[0]]}"
+                    )
+
+                if len(cargo_to_unload) > 0:
+                    print(
+                        f"[{self.current_time}] Unloading {cargo_to_unload} from {a} at {current_airport}"
+                    )
 
                 actions[a] = {
-                    "priority": None,
+                    "priority": 1,
                     "cargo_to_load": cargo_to_load,
                     "cargo_to_unload": cargo_to_unload,
                     "destination": NOAIRPORT_ID,
@@ -119,39 +145,48 @@ class MySolution(Solution):
                 and len(cargo_to_load) + len(cargo_to_unload) == 0
             ):
 
-                ce_onboard = [
-                    ce
-                    for ce in plane.actions
-                    if ce.cargo_id in cargo_onboard and ce.origin == current_airport
-                ]
+                ce_onboard = []
+                should_depart = False
+                if plane.has_actions():
+                    ce_onboard = [
+                        ce for ce in plane.actions[0] if ce.cargo_id in cargo_onboard
+                    ]
+                    # If it is time to dispatch any CE on board, then dispatch and break out
+                    should_depart = len(ce_onboard) == len(plane.actions[0]) or any(
+                        ce for ce in ce_onboard if self.current_time >= ce.lp
+                    )
 
-                # destination from cargoedge on board
+                # destination from CargoEdge on board
                 destination = NOAIRPORT_ID
-                for ce in ce_onboard:
-                    if self.current_time >= ce.lp:
-                        # If it is time to dispatch any CE on board, then dispatch and break out
-                        destination = ce.destination
-                        actions[a] = {
-                            "priority": None,
-                            "cargo_to_load": [],
-                            "cargo_to_unload": [],
-                            "destination": ce.destination,
-                        }
-                        # print(f"Sending {a} to {destination} for {ce}")
-                        for ce in ce_onboard:
-                            if ce.destination == destination:
-                                # Remove them from acitons as they are being executed
-                                plane.actions.remove(ce)
-                            else:
-                                print(
-                                    f"WARNING: plane being dispatched to {destination} with {ce} onboard"
-                                )
-                        break
+                if should_depart:
+                    ce = plane.actions[0][0]
+                    destination = ce.destination
+                    actions[a] = {
+                        "priority": None,
+                        "cargo_to_load": [],
+                        "cargo_to_unload": [],
+                        "destination": ce.destination,
+                    }
+                    print(
+                        f"[{self.current_time}] Sending {a} to {destination} for {ce}"
+                    )
+                    for ce in ce_onboard:
+                        if ce.destination == destination:
+                            # Remove them from actions as they are being executed
+                            for p_actions in plane.actions:
+                                if ce in p_actions:
+                                    p_actions.remove(ce)
+                        else:
+                            print(
+                                f"WARNING: plane being dispatched to {destination} with {ce} onboard"
+                            )
+                    if len(plane.actions[0]) == 0:
+                        plane.actions.pop(0)
 
-                # destination to first cargoedge origin assigned
-                if len(ce_onboard) == 0:
-                    # If plane is empty find the first cargoedge assigned to the plane and go that way
-                    for ce in plane.actions:
+                # destination to first CargoEdge origin assigned
+                if len(ce_onboard) == 0 and plane.has_actions():
+                    # If plane is empty find the first CargoEdge assigned to the plane and go that way
+                    for ce in plane.actions[0]:
                         if ce.origin == current_airport:
                             # Stay here until the cargo is loaded
                             destination = NOAIRPORT_ID
@@ -176,7 +211,9 @@ class MySolution(Solution):
                                 "cargo_to_unload": [],
                                 "destination": destination,
                             }
-                            # print(f"Sending {a} on {path} to pickup {ce}")
+                            print(
+                                f"[{self.current_time}] Sending {a} on {path} to pickup {ce}"
+                            )
                             break
                         else:
                             print(f"WARNING: {a} cannot go on {path} to pickup {ce}")

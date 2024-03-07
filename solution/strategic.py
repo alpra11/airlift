@@ -1,5 +1,5 @@
 import math
-from typing import Dict, List, Optional
+from typing import Dict, Iterable, List, Optional
 from airlift.envs.airlift_env import ObservationHelper
 from solution.common import (
     CargoEdge,
@@ -24,7 +24,7 @@ class Model:
         self.cargo_edges = self._create_cargo_edges(obs)
         self.planes = self._create_assignments(obs)
         # print_cargo_edges(self.cargo_edges)
-        # print_planes(self.planes)
+        # print_planes(self.planes.values())
         return Planning(self.cargo_edges, self.planes)
 
     def update_planning(self, obs) -> Optional[Planning]:
@@ -104,7 +104,7 @@ class Model:
 
         for ce in sorted(
             self.cargo_edges.cargo_edges,
-            key=lambda ce: (math.floor(ce.ep / 50), ce.sequence),
+            key=lambda ce: (math.floor(ce.ep / 200), ce.sequence),
         ):
             sorted_planes = sorted(
                 [p for p in planes if p.type in ce.allowed_plane_types],
@@ -134,12 +134,14 @@ def print_cargo_edges(cargo_edges: CargoEdges) -> None:
         )
 
 
-def print_planes(planes: List[Plane]) -> None:
+def print_planes(planes: Iterable[Plane]) -> None:
     cnt = 0
     for plane in planes:
-        for action in plane.actions:
-            cnt += 1
-            print(
-                f"{plane.id};{action.cargo_id};{action.origin};{action.destination};{action.ep};{action.lp}"
-            )
+        for actions in plane.actions:
+            print("-")
+            for action in actions:
+                cnt += 1
+                print(
+                    f"{plane.id};{action.cargo_id};{action.origin};{action.destination};{action.ep};{action.lp}"
+                )
     print(f"Planned {cnt} cargo edges")

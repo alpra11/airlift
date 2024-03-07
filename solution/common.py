@@ -66,10 +66,10 @@ class CargoEdge:
 
 class CargoEdges:
     def __init__(self) -> None:
-        self.cargo_edges: List[CargoEdge] = []
+        self.cargo_edges: List[List[CargoEdge]] = []
 
-    def add(self, cargo_edge: CargoEdge):
-        self.cargo_edges.append(cargo_edge)
+    def add(self, cargo_edges: List[CargoEdge]):
+        self.cargo_edges.append(cargo_edges)
 
 
 @dataclass
@@ -82,8 +82,11 @@ class Plane:
     ep: int = field(default_factory=lambda: 0)
     lp: int = field(default_factory=lambda: BIG_TIME)
     cur_weight: int = field(default_factory=lambda: 0)
-    actions: List[CargoEdge] = field(default_factory=lambda: [])
+    actions: List[List[CargoEdge]] = field(default_factory=lambda: [])
     cargo_ids: Set[int] = field(default_factory=lambda: set())
+
+    def has_actions(self):
+        return len(self.actions) > 0
 
     def matches(
         self, ce: CargoEdge, path_cache: PathCache
@@ -96,11 +99,11 @@ class Plane:
         ) and tw_overlap(self.ep, self.lp, ce.ep, ce.lp):
             same_edge_and_tw_overlap = 0
         destination = 0 if self.next_destination == ce.origin else 1
-        actions = len(self.actions)
         tt = path_cache.get_travel_time(self.location, ce.origin)
         timediff = self.ep + tt - ce.ep
+        nr_actions = len(self.actions)
 
-        return (cargo, same_edge_and_tw_overlap, destination, actions, timediff)
+        return (cargo, same_edge_and_tw_overlap, destination, timediff, nr_actions)
 
     def can_service(
         self, ce: CargoEdge, path_cache: PathCache, plane_type_map: PlaneTypeMap
@@ -114,11 +117,12 @@ class Plane:
             return False
 
         # add cargo at location
-        if len(self.actions) == 0:
+        if not self.has_actions():
             return True
 
         if (
             self.location == ce.origin
+            and self.next_destination == ce.destination
             and tw_overlap(self.ep, self.lp, ce.ep, ce.lp)
             and self.cur_weight + ce.weight <= self.max_weight
         ):
@@ -126,13 +130,13 @@ class Plane:
         # fly to cargo
         elif (
             self.next_destination == ce.origin
-            and self.ep + self.actions[-1].duration < ce.lp
+            and self.ep + self.actions[-1][-1].duration < ce.lp
         ):
             return True
         # fly to cargo
         elif (
             self.ep
-            + self.actions[-1].duration
+            + self.actions[-1][-1].duration
             + path_cache.get_travel_time(self.next_destination, ce.origin)
             < ce.lp
         ):
@@ -155,9 +159,15 @@ class Plane:
             lp_change = max(0, ce.lp - self.lp)
             self.ep = max(self.ep, ce.ep)
             self.lp = min(self.lp, ce.lp)
+
+            if self.has_actions():
+                self.actions[-1].append(ce)
+            else:
+                self.actions.append([ce])
+
         # fly to cargo
         else:
-            self.ep += self.actions[-1].duration if len(self.actions) > 0 else 0
+            self.ep += self.actions[-1][-1].duration if self.has_actions() else 0
             if self.next_destination != ce.origin:
                 self.ep += path_cache.get_travel_time(self.next_destination, ce.origin)
             # unload everything and load current cargo
@@ -168,8 +178,8 @@ class Plane:
             ep_change = max(0, self.ep - ce.ep)
             self.ep = max(self.ep, ce.ep)
             self.lp = ce.lp
+            self.actions.append([ce])
 
-        self.actions.append(ce)
         self.next_destination = ce.destination
 
         ce.ep = max(self.ep, ce.ep)
