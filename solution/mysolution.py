@@ -1,10 +1,11 @@
+import math
 from airlift.solutions import Solution
 from airlift.envs import ActionHelper
 from airlift.envs.airport import NOAIRPORT_ID
 from airlift.envs.agents import PlaneState
 from airlift.envs.airlift_env import ObservationHelper
 
-from typing import Tuple, Dict, List
+from typing import Optional, Tuple, Dict, List
 
 import networkx as nx
 
@@ -31,9 +32,24 @@ class MySolution(Solution):
 
         global_state = next(iter(obs.values()))["globalstate"]
 
+        self.nr_agents = len(obs)
+        self.latest_deadline = max(
+            c.hard_deadline for c in global_state["active_cargo"]
+        )
+
         self.path_matrices = dict()
         for plane_type, route_map in global_state["route_map"].items():
             self.path_matrices[plane_type] = PathMatrix(route_map)
+
+    def calculate_priority(self, next_deadline: Optional[int]) -> int:
+        if next_deadline is None:
+            return self.nr_agents
+
+        time_left = next_deadline - self.current_time
+        total_time_left = self.latest_deadline - next_deadline
+        priority = math.floor(time_left / total_time_left * self.nr_agents)
+        priority = max(min(priority, self.nr_agents), 1)
+        return priority
 
     def policies(self, obs, dones, infos):
         # Use the action helper to generate an action
@@ -123,18 +139,32 @@ class MySolution(Solution):
                     if cargo_missing and can_wait:
                         cargo_to_load = []
 
+                priority = self.calculate_priority(plane.get_next_deadline())
                 if len(cargo_to_load) > 0:
                     print(
                         f"[{self.current_time}] Loading {cargo_to_load} on {a} at {current_airport} lp {[ce.lp for ce in plane.actions[0]]}"
                     )
 
                 if len(cargo_to_unload) > 0:
+                    ce_to_unload = [
+                        ce
+                        for ce in self.planning.cargo_edges.cargo_edges
+                        if ce.cargo_id in cargo_to_unload
+                        and ce.origin == current_airport
+                    ]
+                    next_cargo_deadline = min(
+                        (ce.lp for ce in ce_to_unload), default=None
+                    )
+
+                    priority = min(
+                        priority, self.calculate_priority(next_cargo_deadline)
+                    )
                     print(
                         f"[{self.current_time}] Unloading {cargo_to_unload} from {a} at {current_airport}"
                     )
 
                 actions[a] = {
-                    "priority": 1,
+                    "priority": priority,
                     "cargo_to_load": cargo_to_load,
                     "cargo_to_unload": cargo_to_unload,
                     "destination": NOAIRPORT_ID,
@@ -162,7 +192,7 @@ class MySolution(Solution):
                     ce = plane.actions[0][0]
                     destination = ce.destination
                     actions[a] = {
-                        "priority": None,
+                        "priority": self.calculate_priority(plane.get_next_deadline()),
                         "cargo_to_load": [],
                         "cargo_to_unload": [],
                         "destination": ce.destination,
@@ -191,7 +221,9 @@ class MySolution(Solution):
                             # Stay here until the cargo is loaded
                             destination = NOAIRPORT_ID
                             actions[a] = {
-                                "priority": None,
+                                "priority": self.calculate_priority(
+                                    plane.get_next_deadline()
+                                ),
                                 "cargo_to_load": [],
                                 "cargo_to_unload": [],
                                 "destination": NOAIRPORT_ID,
@@ -206,7 +238,9 @@ class MySolution(Solution):
                             # Head to it
                             destination = path[1]
                             actions[a] = {
-                                "priority": None,
+                                "priority": self.calculate_priority(
+                                    plane.get_next_deadline()
+                                ),
                                 "cargo_to_load": [],
                                 "cargo_to_unload": [],
                                 "destination": destination,
@@ -218,7 +252,11 @@ class MySolution(Solution):
                         else:
                             print(f"WARNING: {a} cannot go on {path} to pickup {ce}")
             if a not in actions:
-                actions[a] = ActionHelper.noop_action()
+                noop_action = ActionHelper.noop_action()
+                noop_action["priority"] = self.calculate_priority(
+                    plane.get_next_deadline()
+                )
+                actions[a] = noop_action
         self.current_time += 1
         return actions
 

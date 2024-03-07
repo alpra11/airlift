@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 import networkx as nx
 
 BIG_TIME = 100_000
@@ -85,8 +85,12 @@ class Plane:
     actions: List[List[CargoEdge]] = field(default_factory=lambda: [])
     cargo_ids: Set[int] = field(default_factory=lambda: set())
 
-    def has_actions(self):
+    def has_actions(self) -> bool:
         return len(self.actions) > 0
+
+    def get_next_deadline(self) -> Optional[int]:
+        if self.has_actions():
+            return min(ce.lp for ce in self.actions[0])
 
     def matches(
         self, ce: CargoEdge, path_cache: PathCache
