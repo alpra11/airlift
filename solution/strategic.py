@@ -23,6 +23,8 @@ class Model:
         self.plane_type_map = PlaneTypeMap(global_state["route_map"])
         self.cargo_edges = self._create_cargo_edges(obs)
         self.planes = self._create_assignments(obs)
+        # print_cargo_edges(self.cargo_edges)
+        # print_planes(self.planes)
         return Planning(self.cargo_edges, self.planes)
 
     def update_planning(self, obs) -> Optional[Planning]:
@@ -40,12 +42,14 @@ class Model:
 
     def _create_cargo_edges(self, obs) -> CargoEdges:
         global_state = next(iter(obs.values()))["globalstate"]
-        cargo_edges = CargoEdges()
-        return self._add_cargo_edges_from_cargos(
-            cargo_edges, global_state["active_cargo"]
+        cargo_edges = self._add_cargo_edges_from_cargos(
+            CargoEdges(), global_state["active_cargo"]
         )
+        return cargo_edges
 
-    def _add_cargo_edges_from_cargos(self, cargo_edges, cargos) -> CargoEdges:
+    def _add_cargo_edges_from_cargos(
+        self, cargo_edges: CargoEdges, cargos
+    ) -> CargoEdges:
         for cargo in cargos:
             shortest_path = self.paths.get_path(cargo.location, cargo.destination)
 
@@ -100,7 +104,7 @@ class Model:
 
         for ce in sorted(
             self.cargo_edges.cargo_edges,
-            key=lambda ce: (math.floor(ce.ep / 30), ce.sequence),
+            key=lambda ce: (math.floor(ce.ep / 50), ce.sequence),
         ):
             sorted_planes = sorted(
                 [p for p in planes if p.type in ce.allowed_plane_types],
@@ -120,13 +124,22 @@ class Model:
             if not found:
                 print(f"No plane found for ce {ce}")
 
-        # cnt = 0
-        # for plane in planes:
-        #    for action in plane.actions:
-        #        cnt += 1
-        #        print(
-        #            f"{plane.id};{action.cargo_id};{action.origin};{action.destination};{action.ep};{action.lp}"
-        #        )
-        # print(f"Planned {cnt} cargo edges")
-
         return {plane.id: plane for plane in planes}
+
+
+def print_cargo_edges(cargo_edges: CargoEdges) -> None:
+    for ce in cargo_edges.cargo_edges:
+        print(
+            f"{ce.cargo_id};{ce.origin};{ce.destination};{ce.duration};{ce.sequence};{ce.ep};{ce.lp};{ce.weight};{ce.allowed_plane_types}"
+        )
+
+
+def print_planes(planes: List[Plane]) -> None:
+    cnt = 0
+    for plane in planes:
+        for action in plane.actions:
+            cnt += 1
+            print(
+                f"{plane.id};{action.cargo_id};{action.origin};{action.destination};{action.ep};{action.lp}"
+            )
+    print(f"Planned {cnt} cargo edges")

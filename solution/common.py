@@ -4,6 +4,8 @@ import networkx as nx
 
 BIG_TIME = 100_000
 
+TW_OVERLAP_MARGIN = 15
+
 
 class PlaneTypeMap:
     # cache for travel time between 2 nodes
@@ -182,4 +184,4 @@ class Planning:
 
 
 def tw_overlap(ep_1: int, lp_1: int, ep_2: int, lp_2: int) -> bool:
-    return ep_1 <= lp_2 and ep_2 <= lp_1
+    return ep_1 <= lp_2 - TW_OVERLAP_MARGIN and ep_2 <= lp_1 - TW_OVERLAP_MARGIN
