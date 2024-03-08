@@ -41,6 +41,7 @@ class MySolution(Solution):
         self.increment_timestep()
         self.actions.reset()
         self.cargo.update(state)
+        self.network.prune_graph(state)
 
     def get_sorted_cargo(self, state: Dict[str, Any]) -> List:
         # TODO: Add logic to use the next loc if the current location is already crossed
@@ -81,12 +82,16 @@ class MySolution(Solution):
     def compute_waiting_actions(self, agent: str, agent_state: Dict[str, Any]) -> None:
         c_id = self.network.agents.get_cargo(agent)
         cur_airport = agent_state["current_airport"]
-
+        ass_path = self.network.agents.get_path(agent)
+        
         if c_id in agent_state["cargo_at_current_airport"]:
             self.actions.process_cargo(agent, cargo_to_load=[c_id])
-        elif cur_airport == self.network.agents.get_path(agent)[-1]:
-            self.actions.process_cargo(agent, cargo_to_unload=[c_id])
-            self.cargo.unassign(c_id, cur_airport)
+        elif c_id in agent_state["cargo_onboard"]:
+            if cur_airport == ass_path[-1]:
+                self.actions.process_cargo(agent, cargo_to_unload=[c_id])
+            if not self.cargo.is_waiting(c_id) and cur_airport == ass_path[1]:
+                self.cargo.set_waiting(c_id)
+                self.network.agents.update_path(agent, ass_path[1:])
 
     def compute_takeoff_actions(self, agent: str, agent_state: Dict[str, Any], state: Dict[str, Any]) -> None:
         graph = ObservationHelper.get_multidigraph(state)
@@ -96,18 +101,20 @@ class MySolution(Solution):
         cur_airport = agent_state["current_airport"]
 
         if c_id in agent_state["cargo_onboard"]:
-            if not graph.has_edge(ass_path[0], ass_path[1]):
-                new_path = nx.shortest_path(graph, cur_airport, ass_path[-1], weight="cost")
-                self.actions.take_off(agent, new_path[1])
-                agents.update_path(agent, new_path[1:])
-            else:
+            self.cargo.remove_waiting(c_id)
+            if list(graph.get_edge_data(ass_path[0], ass_path[1]).values())[0]["route_available"]:
                 self.actions.take_off(agent, ass_path[1])
-                agents.update_path(agent, ass_path[1:])
+            else:
+                new_path = self.network.get_pruned_shortest_path(cur_airport, ass_path[-1])
+                if new_path:
+                    self.actions.take_off(agent, new_path[1])
+                    self.network.agents.update_path(agent, new_path)
         else:
             if len(ass_path) == 1:
                 # TODO: Remove check when submitting
                 if ass_path[0] == cur_airport:
                     self.network.free(agent)
+                    self.cargo.unassign(c_id, cur_airport)
                 else:
                     print(f"ERROR: Agent {agent} has path {ass_path} while being at airport {cur_airport}!!")
             elif cur_airport == ass_path[0]:
@@ -115,8 +122,9 @@ class MySolution(Solution):
                 if c_id in agent_state["cargo_at_current_airport"]:
                     self.actions.process_cargo(agent, cargo_to_load=[c_id])
             else:
-                new_path = nx.shortest_path(graph, cur_airport, ass_path[0], weight="cost")
-                self.actions.take_off(agent, new_path[1])
+                new_path = self.network.get_pruned_shortest_path(cur_airport, ass_path[0])
+                if new_path:
+                    self.actions.take_off(agent, new_path[1])
     
     def assign_actions(self, state: Dict[str, Any]) -> None:
         for agent, agent_state in state["agents"].items():
@@ -132,13 +140,35 @@ class MySolution(Solution):
     def policies(self, obs, dones, infos):
         # Use the acion helper to generate an action
         state = get_globalstate(obs)
-        process_infos(infos)
+        # process_infos(infos, self.timestep)
 
         self.update_data(state)
 
         self.assign_free_agents(state)
         self.assign_actions(state)
 
-        print(self.actions.get_actions()["a_0"])
+        # print(self.timestep)
+        # for agent, data in state["agents"].items():
+        #     if agent == "a_0":
+        #         continue
+        #     actions = self.actions.get_actions()[agent]
+        #     print(
+        #         agent,
+        #         data["state"], 
+        #         data["current_airport"], 
+        #         data["destination"], 
+        #         data["cargo_onboard"], 
+        #         data["cargo_at_current_airport"], 
+        #         data["next_action"]
+        #     )
+        #     print(agent, actions)
+        #     print(state["route_map"][0].get_edge_data(data["current_airport"], actions["destination"]))
+        #     print(agent, self.network.agents.get_path(agent))
+        #     print(self.network.pruned.pruned_graph.edges(data["current_airport"]))
+        #     print(
+        #         state["route_map"][0].get_edge_data(
+        #             data["current_airport"], actions["destination"]
+        #         )['route_available'] if actions["destination"]!=0 else None
+        #     )
 
         return self.actions.get_actions()    

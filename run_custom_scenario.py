@@ -1,25 +1,27 @@
 # Environment
-from airlift.envs.airlift_env import AirliftEnv
 from airlift.envs import PlaneType
-from airlift.envs.generators.map_generators import PlainMapGenerator
-
-# Generators
-from airlift.envs.generators.world_generators import AirliftWorldGenerator
-from airlift.envs.generators.airport_generators import RandomAirportGenerator
-from airlift.envs.generators.route_generators import RouteByDistanceGenerator
-from airlift.envs.generators.airplane_generators import AirplaneGenerator
-from airlift.envs.generators.cargo_generators import StaticCargoGenerator
+from airlift.envs.airlift_env import AirliftEnv
 
 # Dynamic events
 from airlift.envs.events.event_interval_generator import EventIntervalGenerator
-from airlift.envs.generators.cargo_generators import DynamicCargoGenerator
+from airlift.envs.generators.airplane_generators import AirplaneGenerator
+from airlift.envs.generators.airport_generators import RandomAirportGenerator
+from airlift.envs.generators.cargo_generators import (
+    DynamicCargoGenerator,
+    StaticCargoGenerator,
+)
+from airlift.envs.generators.map_generators import PlainMapGenerator
+from airlift.envs.generators.route_generators import RouteByDistanceGenerator
 
-# Starter kit solution
-from solution.mysolution import MySolution
+# Generators
+from airlift.envs.generators.world_generators import AirliftWorldGenerator
 
 # Helper methods
 from airlift.solutions import doepisode
 from eval_solution import write_results
+
+# Starter kit solution
+from solution.mysolution import MySolution
 
 # Maximum number of steps the episode will run
 max_cycles = 5000
@@ -99,7 +101,7 @@ env = AirliftEnv(
 """
 Run a single episode utilizing the Solution we wrote with the above environment. 
 """
-# env = AirliftEnv.load("./scenarios/Test_0/Level_0.pkl")
+env = AirliftEnv.load("./scenarios/Test_0/Level_0.pkl")
 env_info, metrics, time_taken, total_solution_time, step_metrics = \
   doepisode(env,
             solution=MySolution(),

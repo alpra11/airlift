@@ -1,3 +1,4 @@
+from copy import copy, deepcopy
 from typing import Any, Dict, ItemsView, List, Optional, Set, Tuple
 
 import networkx as nx
@@ -9,6 +10,7 @@ class Network:
     def __init__(self, state: Dict[str, Any]) -> None:
         graph = ObservationHelper.get_multidigraph(state)
         self.graph = Graph(graph, state)
+        self.pruned = PrunedGraph(graph)
         self.groups = Groups(state)
         self.agents = Agents(state)
         self.free_agents = self._get_agents_by_group()
@@ -28,6 +30,12 @@ class Network:
         self.agents.free(agent)
         group = self.groups.get_agent_group(agent)
         self.free_agents[group].add(agent)
+
+    def prune_graph(self, state: Dict[str, Any]) -> None:
+        self.pruned.prune_graph(self.graph.graph, state)
+
+    def get_pruned_shortest_path(self, orig: int, dest: int) -> List[int]:
+        return self.pruned.get_shortest_path(orig, dest)
 
 def get_processing_time(state: Dict) -> int:
     # TODO: Unnecessary check, remove before submitting
@@ -51,10 +59,21 @@ class Graph:
         path = self.shortest_path(orig, dest)
         return nx.path_weight(self.graph, path, weight="cost")
 
+class PrunedGraph:
+    def __init__(self, graph: nx.graph) -> None:
+        self.pruned_graph = deepcopy(graph)
 
-    @staticmethod
-    def get_shortest_path_for_graph(graph: nx.graph, orig: int, dest: int) -> List[int]:
-        return nx.shortest_path(graph, orig, dest, weight="cost")
+    def prune_graph(self, graph: nx.graph, state: Dict[str, Any]) -> None:
+        self.pruned_graph = deepcopy(graph)
+        inactive_edges = [(u,v) for route_map in state["route_map"].values() for u, v, data in route_map.edges(data=True) if not data["route_available"]]
+        self.pruned_graph.remove_edges_from(inactive_edges)
+
+    def get_shortest_path(self, orig: int, dest: int) -> List[int]:
+        try:
+            shortest_path = nx.shortest_path(self.pruned_graph, orig, dest, weight="cost")
+        except nx.exception.NetworkXNoPath:
+            return []
+        return shortest_path
     
 class GroupedPaths:
     def __init__(self, plane_type: int, state: Dict[str, Any], graph: nx.graph, airports: List[int]) -> None:

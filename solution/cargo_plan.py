@@ -14,12 +14,14 @@ class CargoEstimate:
         self.id = cargo.id
         self.dest = cargo.destination
         self.cur_loc= LocInfo(cargo.earliest_pickup_time, cargo.location)
+        self.is_waiting = False
 
     def is_assigned(self) -> bool:
-        return self.cur_loc.agent is not None
+        return self.cur_loc.agent is not None and not self.is_waiting
     
     def assign_agent(self, agent: str) -> None:
         self.cur_loc.agent = agent
+        self.is_waiting = False
     
     def unassign(self, new_loc: int) -> None:
         self.cur_loc.loc = new_loc
@@ -43,6 +45,15 @@ class CargoPlan:
     def update(self, state: Dict[str, Any]) -> None:
         for cargo in state["event_new_cargo"]:
             self.cargo[cargo.id] = CargoEstimate(cargo)
+
+    def is_waiting(self, c_id: int) -> bool:
+        return self.cargo[c_id].is_waiting
+    
+    def set_waiting(self, c_id: int) -> False:
+        self.cargo[c_id].is_waiting = True
+
+    def remove_waiting(self, c_id: int) -> False:
+        self.cargo[c_id].is_waiting = False
 
     def get_location(self, c_id: int) -> int:
         return self.cargo[c_id].cur_loc.loc
