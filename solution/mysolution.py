@@ -8,6 +8,7 @@ from airlift.envs.airlift_env import ObservationHelper
 from typing import Optional, Tuple, Dict, List
 
 import networkx as nx
+from solution.common import Leg
 
 from solution.strategic import Model
 
@@ -89,21 +90,25 @@ class MySolution(Solution):
                         cargo_to_unload.append(cargo_id)
                         for plane in self.planning.planes.values():
                             # TODO This is slow
-                            new_actions = []
-                            for p_actions in plane.actions:
-                                filtered_actions = [
-                                    ce for ce in p_actions if ce.cargo_id != cargo_id
+                            new_legs = []
+                            for legs in plane.legs:
+                                filtered_ce = [
+                                    ce
+                                    for ce in legs.cargo_edges
+                                    if ce.cargo_id != cargo_id
                                 ]
-                                if len(filtered_actions) > 0:
-                                    new_actions.append(filtered_actions)
-                            plane.actions = new_actions
+                                if len(filtered_ce) > 0:
+                                    new_legs.append(Leg.construct(filtered_ce))
+                            plane.legs = new_legs
                         continue
 
                     # Unload cargo where the next CargoEdge is not an available destination
                     # TODO: this will happen if there is mal, not ideal
 
-                    if plane.has_actions():
-                        if all(ce.cargo_id != cargo_id for ce in plane.actions[0]):
+                    if plane.has_legs():
+                        if all(
+                            ce.cargo_id != cargo_id for ce in plane.legs[0].cargo_edges
+                        ):
                             cargo_to_unload.append(cargo_id)
                             cur_weight -= cargo.weight
                     else:
@@ -117,8 +122,8 @@ class MySolution(Solution):
                     )
                     or []
                 ):
-                    if plane.has_actions():
-                        for ce in plane.actions[0]:
+                    if plane.has_legs():
+                        for ce in plane.legs[0].cargo_edges:
                             if (
                                 ce.origin == current_airport
                                 and ce.cargo_id == cargo.id
@@ -129,11 +134,11 @@ class MySolution(Solution):
                                 cur_weight += cargo.weight
 
                 # load all cargo at once
-                if plane.has_actions():
-                    cargo_missing = len(cargo_to_load) < len(plane.actions[0])
+                if plane.has_legs():
+                    cargo_missing = len(cargo_to_load) < len(plane.legs[0].cargo_edges)
                     can_wait = all(
                         self.current_time < ce.lp
-                        for ce in plane.actions[0]
+                        for ce in plane.legs[0].cargo_edges
                         if ce.cargo_id in cargo_to_load
                     )
                     if cargo_missing and can_wait:
@@ -142,7 +147,7 @@ class MySolution(Solution):
                 priority = self.calculate_priority(plane.get_next_deadline())
                 if len(cargo_to_load) > 0:
                     print(
-                        f"[{self.current_time}] Loading {cargo_to_load} on {a} at {current_airport} lp {min(ce.lp for ce in plane.actions[0])}"
+                        f"[{self.current_time}] Loading {cargo_to_load} on {a} at {current_airport} lp {plane.legs[0].lp}"
                     )
 
                 if len(cargo_to_unload) > 0:
@@ -177,19 +182,21 @@ class MySolution(Solution):
 
                 ce_onboard = []
                 should_depart = False
-                if plane.has_actions():
+                if plane.has_legs():
                     ce_onboard = [
-                        ce for ce in plane.actions[0] if ce.cargo_id in cargo_onboard
+                        ce
+                        for ce in plane.legs[0].cargo_edges
+                        if ce.cargo_id in cargo_onboard
                     ]
                     # If it is time to dispatch any CE on board, then dispatch and break out
-                    should_depart = len(ce_onboard) == len(plane.actions[0]) or any(
-                        ce for ce in ce_onboard if self.current_time >= ce.lp
-                    )
+                    should_depart = len(ce_onboard) == len(
+                        plane.legs[0].cargo_edges
+                    ) or any(ce for ce in ce_onboard if self.current_time >= ce.lp + 20)
 
                 # destination from CargoEdge on board
                 destination = NOAIRPORT_ID
                 if should_depart:
-                    ce = plane.actions[0][0]
+                    ce = plane.legs[0].cargo_edges[0]
                     destination = ce.destination
                     actions[a] = {
                         "priority": self.calculate_priority(plane.get_next_deadline()),
@@ -202,21 +209,19 @@ class MySolution(Solution):
                     )
                     for ce in ce_onboard:
                         if ce.destination == destination:
-                            # Remove them from actions as they are being executed
-                            for p_actions in plane.actions:
-                                if ce in p_actions:
-                                    p_actions.remove(ce)
+                            # Remove them from legs as they are being executed
+                            plane.legs[0].remove(ce)
                         else:
                             print(
                                 f"WARNING: plane being dispatched to {destination} with {ce} onboard"
                             )
-                    if len(plane.actions[0]) == 0:
-                        plane.actions.pop(0)
+                    if len(plane.legs[0].cargo_edges) == 0:
+                        plane.legs.pop(0)
 
                 # destination to first CargoEdge origin assigned
-                if len(ce_onboard) == 0 and plane.has_actions():
+                if len(ce_onboard) == 0 and plane.has_legs():
                     # If plane is empty find the first CargoEdge assigned to the plane and go that way
-                    for ce in plane.actions[0]:
+                    for ce in plane.legs[0].cargo_edges:
                         if ce.origin == current_airport:
                             # Stay here until the cargo is loaded
                             destination = NOAIRPORT_ID

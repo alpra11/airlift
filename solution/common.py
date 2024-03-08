@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Set, Tuple
 import networkx as nx
@@ -63,6 +65,9 @@ class CargoEdge:
     weight: int
     allowed_plane_types: Set[int]
 
+    def corresponds(self, ce_seq) -> bool:
+        return self.cargo_id == ce_seq[0] and self.sequence == ce_seq[1]
+
 
 class CargoEdges:
     def __init__(self) -> None:
@@ -73,24 +78,63 @@ class CargoEdges:
 
 
 @dataclass
+class Leg:
+    cargo_edges: List[CargoEdge]
+    ep: int
+    lp: int
+
+    def add(self, cargo_edge: CargoEdge) -> None:
+        self.cargo_edges.append(cargo_edge)
+        self.ep = max(self.ep, cargo_edge.ep)
+        self.lp = min(self.lp, cargo_edge.lp)
+
+    def remove(self, cargo_edge: CargoEdge) -> None:
+        if cargo_edge in self.cargo_edges:
+            self.cargo_edges.remove(cargo_edge)
+
+    def get_duration(self) -> int:
+        return self.cargo_edges[-1].duration
+
+    @staticmethod
+    def construct(ces: List[CargoEdge]) -> Leg:
+        first_ce = ces[0]
+        leg = Leg([first_ce], first_ce.ep, first_ce.lp)
+        for ce in ces[1:]:
+            leg.add(ce)
+        return leg
+
+
+@dataclass
 class Plane:
     id: str
     location: int
     next_destination: int
     type: int
     max_weight: int
-    ep: int = field(default_factory=lambda: 0)
-    lp: int = field(default_factory=lambda: BIG_TIME)
     cur_weight: int = field(default_factory=lambda: 0)
-    actions: List[List[CargoEdge]] = field(default_factory=lambda: [])
+    legs: List[Leg] = field(default_factory=lambda: [])
     cargo_ids: Set[int] = field(default_factory=lambda: set())
 
-    def has_actions(self) -> bool:
-        return len(self.actions) > 0
+    def has_legs(self) -> bool:
+        return len(self.legs) > 0
 
     def get_next_deadline(self) -> Optional[int]:
-        if self.has_actions():
-            return min(ce.lp for ce in self.actions[0])
+        if self.has_legs():
+            return self.legs[0].lp
+
+    @property
+    def ep(self):
+        if self.has_legs():
+            return self.legs[-1].ep
+        else:
+            return 0
+
+    @property
+    def lp(self):
+        if self.has_legs():
+            return self.legs[-1].lp
+        else:
+            return BIG_TIME
 
     def matches(
         self, ce: CargoEdge, path_cache: PathCache
@@ -105,9 +149,9 @@ class Plane:
         destination = 0 if self.next_destination == ce.origin else 1
         tt = path_cache.get_travel_time(self.location, ce.origin)
         timediff = self.ep + tt - ce.ep
-        nr_actions = len(self.actions)
+        nr_legs = len(self.legs)
 
-        return (cargo, same_edge_and_tw_overlap, destination, timediff, nr_actions)
+        return (cargo, same_edge_and_tw_overlap, destination, timediff, nr_legs)
 
     def can_service(
         self, ce: CargoEdge, path_cache: PathCache, plane_type_map: PlaneTypeMap
@@ -121,7 +165,7 @@ class Plane:
             return False
 
         # add cargo at location
-        if not self.has_actions():
+        if not self.has_legs():
             return True
 
         if (
@@ -134,13 +178,13 @@ class Plane:
         # fly to cargo
         elif (
             self.next_destination == ce.origin
-            and self.ep + self.actions[-1][-1].duration < ce.lp
+            and self.ep + self.legs[-1].get_duration() < ce.lp
         ):
             return True
         # fly to cargo
         elif (
             self.ep
-            + self.actions[-1][-1].duration
+            + self.legs[-1].get_duration()
             + path_cache.get_travel_time(self.next_destination, ce.origin)
             < ce.lp
         ):
@@ -149,8 +193,10 @@ class Plane:
         return False
 
     def add_cargo_edge(self, ce: CargoEdge, path_cache: PathCache) -> Tuple[int, int]:
-        ep_change = 0
-        lp_change = 0
+        ep_diff_ce = 0
+        lp_diff_ce = 0
+        ep_diff_leg = 0
+        lp_diff_leg = 0
         # add cargo at location
         if (
             self.location == ce.origin
@@ -159,36 +205,47 @@ class Plane:
         ):
             self.cur_weight += ce.weight
             self.cargo_ids.add(ce.cargo_id)
-            ep_change = max(0, self.ep - ce.ep)
-            lp_change = max(0, ce.lp - self.lp)
-            self.ep = max(self.ep, ce.ep)
-            self.lp = min(self.lp, ce.lp)
+            ep_diff_ce = max(0, self.ep - ce.ep)
+            lp_diff_ce = max(0, ce.lp - self.lp)
+            ep_diff_leg = max(0, ce.ep - self.ep)
+            lp_diff_leg = max(0, self.lp - ce.lp)
+            leg_ep = max(self.ep, ce.ep)
+            leg_lp = min(self.lp, ce.lp)
 
-            if self.has_actions():
-                self.actions[-1].append(ce)
+            if self.has_legs():
+                self.legs[-1].add(ce)
             else:
-                self.actions.append([ce])
+                self.legs.append(Leg([ce], leg_ep, leg_lp))
 
         # fly to cargo
         else:
-            self.ep += self.actions[-1][-1].duration if self.has_actions() else 0
+            new_ep = self.ep + self.legs[-1].get_duration() if self.has_legs() else 0
+            new_lp = self.lp + self.legs[-1].get_duration() if self.has_legs() else 0
             if self.next_destination != ce.origin:
-                self.ep += path_cache.get_travel_time(self.next_destination, ce.origin)
+                tt = path_cache.get_travel_time(self.next_destination, ce.origin)
+                new_ep += tt
+                new_lp += tt
             # unload everything and load current cargo
             self.cur_weight = ce.weight
             self.location = ce.origin
             self.cargo_ids = {ce.cargo_id}
 
-            ep_change = max(0, self.ep - ce.ep)
-            self.ep = max(self.ep, ce.ep)
-            self.lp = ce.lp
-            self.actions.append([ce])
+            ep_diff_ce = max(0, new_ep - ce.ep)
+            lp_diff_leg = max(0, new_lp - ce.lp)
+            leg_ep = max(new_ep, ce.ep)
+            leg_lp = ce.lp
+            self.legs.append(Leg([ce], leg_ep, leg_lp))
 
         self.next_destination = ce.destination
 
-        ce.ep = max(self.ep, ce.ep)
-        ce.lp = min(self.lp, ce.lp)
-        return (ep_change, lp_change)
+        return (ep_diff_ce, lp_diff_ce, ep_diff_leg, lp_diff_leg)
+
+    def find_leg(self, ce_seq: Tuple[int, int]) -> List[CargoEdge]:
+        for legs in self.legs:
+            for ce in legs.cargo_edges:
+                if ce.cargo_id == ce_seq[0] and ce.sequence == ce_seq[1]:
+                    return legs
+        return []
 
 
 class Planning:
